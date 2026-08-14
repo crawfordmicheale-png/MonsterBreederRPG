@@ -111,9 +111,34 @@ export class Game {
     this.team = this.team.filter((t) => t !== id);
   }
 
+  /** Capacity as upgraded by projects, not the static species table. */
+  habitat(id) {
+    return this.habitats[id] ?? HABITATS[id];
+  }
+
+  hasRoom(id) {
+    return this.occupantsOf(id).length < this.habitat(id).capacity;
+  }
+
+  /**
+   * Put a Kinbeast somewhere sensible: its species' habitat if there is room,
+   * otherwise any unlocked habitat with space. If everywhere is full it goes
+   * home anyway and the habitat becomes crowded, which costs stress rather
+   * than silently swallowing the creature.
+   */
   assignHabitat(beast) {
     const preferred = getSpecies(beast.speciesId).habitat;
-    beast.habitat = this.habitatsUnlocked.includes(preferred) ? preferred : this.habitatsUnlocked[0];
+    const unlocked = this.habitatsUnlocked;
+    if (unlocked.includes(preferred) && this.hasRoom(preferred)) {
+      beast.habitat = preferred;
+      return;
+    }
+    const spare = unlocked.find((id) => this.hasRoom(id));
+    beast.habitat = spare ?? (unlocked.includes(preferred) ? preferred : unlocked[0]);
+  }
+
+  isCrowded(id) {
+    return this.occupantsOf(id).length > this.habitat(id).capacity;
   }
 
   occupantsOf(habitatId) {
@@ -275,7 +300,9 @@ export class Game {
 
   recoverSanctuary(weight) {
     for (const beast of this.roster) {
-      beast.stress = Math.max(0, beast.stress - weight * (this.facilities.clinic ? 4 : 2));
+      // A crowded habitat is somewhere a Kinbeast never quite settles.
+      const relief = this.isCrowded(beast.habitat) ? -2 : this.facilities.clinic ? 4 : 2;
+      beast.stress = Math.max(0, Math.min(100, beast.stress - weight * relief));
       if (this.facilities.clinic) {
         const stats = computeStats(beast);
         beast.hpLost = Math.max(0, beast.hpLost - Math.round(stats.maxHp * 0.08 * weight));

@@ -72,15 +72,22 @@ export function sanctuaryScreen(app) {
     div(
       { class: 'stack' },
       game.habitatsUnlocked.map((id) => {
-        const habitat = HABITATS[id];
+        const habitat = game.habitat(id);
         const occupants = game.occupantsOf(id);
+        const crowded = game.isCrowded(id);
         return div(
           { class: 'card tight' },
           div(
             { class: 'spread' },
             div({}, el('h3', { style: { margin: 0 } }, habitat.name), div({ class: 'tiny' }, `${occupants.length}/${habitat.capacity} · ${habitat.affinities.join(', ')}`)),
-            span({ class: 'swatch', style: { background: habitat.tone, width: '18px', height: '18px' } })
+            div({ class: 'row' },
+              crowded ? tag('Crowded', 'bad') : null,
+              span({ class: 'swatch', style: { background: habitat.tone, width: '18px', height: '18px' } })
+            )
           ),
+          crowded
+            ? div({ class: 'tiny', style: { color: 'var(--danger)', marginTop: '4px' } }, 'Over capacity — nobody here is settling. Build more space.')
+            : null,
           occupants.length
             ? div(
                 { class: 'row wrap', style: { marginTop: '8px' } },
@@ -204,9 +211,10 @@ function habitatGossip(game) {
   }
   const pick = pairs.filter((x) => x.b).sort((a, b) => Math.abs(b.score) - Math.abs(a.score))[0];
   if (!pick) return null;
+  const where = game.habitat(pick.a.habitat).name.toLowerCase();
   return pick.kind === 'friend'
-    ? `${pick.a.name} and ${pick.b.name} have taken to sleeping in the same corner of the ${HABITATS[pick.a.habitat].name.toLowerCase()}.`
-    : `${pick.a.name} and ${pick.b.name} will not settle in the same part of the ${HABITATS[pick.a.habitat].name.toLowerCase()}.`;
+    ? `${pick.a.name} and ${pick.b.name} have taken to sleeping in the same corner of the ${where}.`
+    : `${pick.a.name} and ${pick.b.name} will not settle in the same part of the ${where}.`;
 }
 
 // ===========================================================================

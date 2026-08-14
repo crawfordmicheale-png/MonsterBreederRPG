@@ -313,3 +313,39 @@ test('naming a bloodline tags the whole descending line', () => {
   assert.equal(child.lineage, 'silverbrook_guardians', 'descendants inherit the line name');
   assert.equal(game.lineageMembers('silverbrook_guardians').length, 2);
 });
+
+test('habitats respect their upgraded capacity, and overflow is visible', () => {
+  const game = new Game();
+  const meadowCap = game.habitat('meadow').capacity;
+
+  // Fill the meadow to capacity with meadow-dwelling species.
+  for (let i = 0; i < meadowCap; i++) {
+    game.addBeast(makeWildKinbeast('mossbun', game.rng, 8));
+  }
+  assert.equal(game.occupantsOf('meadow').length, meadowCap);
+  assert.equal(game.isCrowded('meadow'), false);
+  assert.equal(game.hasRoom('meadow'), false);
+
+  // With a second habitat open, the next arrival goes there instead.
+  game.unlockHabitat('wetland');
+  const overflow = makeWildKinbeast('mossbun', game.rng, 8);
+  game.addBeast(overflow);
+  assert.equal(overflow.habitat, 'wetland', 'a full habitat should push new arrivals elsewhere');
+  assert.equal(game.isCrowded('meadow'), false);
+
+  // Capacity upgrades are read from game state, not the static species table.
+  game.habitats.meadow.capacity += 2;
+  assert.equal(game.habitat('meadow').capacity, meadowCap + 2);
+  assert.equal(game.hasRoom('meadow'), true);
+});
+
+test('a crowded habitat raises stress instead of easing it', () => {
+  const game = new Game();
+  const cap = game.habitat('meadow').capacity;
+  for (let i = 0; i < cap + 2; i++) game.addBeast(makeWildKinbeast('mossbun', game.rng, 8));
+  assert.equal(game.isCrowded('meadow'), true, 'the only habitat should end up over capacity');
+
+  for (const b of game.roster) b.stress = 20;
+  game.completeActivity('test', 1);
+  assert.ok(game.roster.every((b) => b.stress > 20), 'crowding should add stress');
+});
