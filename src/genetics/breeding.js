@@ -9,8 +9,10 @@ import { getSpecies, sharedFamilies, FEATURE_TAGS } from '../data/species.js';
 import { MOVES, isLegacyMove, canPerform } from '../data/moves.js';
 import { TENDENCY_IDS } from '../data/temperaments.js';
 import { AFFINITY_IDS } from '../data/affinities.js';
+import { HAZARDS, HAZARD_IDS, RESIST_ALLELES, expressResistance } from '../data/environment.js';
 import {
   ALL_LOCI,
+  RESIST_LOCI,
   FEATURE_SLOTS,
   COLOR_LOCI,
   STAT_KEYS,
@@ -241,6 +243,15 @@ function mutateAllele(locus, current, rng, species) {
     const v = Math.max(0.05, Math.min(1, (current.v ?? 0.5) + rng.bell() * 0.35));
     return allele(v, 1, 'mutation');
   }
+  if (RESIST_LOCI.includes(locus)) {
+    // Resistance mutates one step at a time — it is an adaptation, not a coin
+    // flip, so it should creep rather than leap.
+    const order = ['none', 'partial', 'full'];
+    const at = order.indexOf(current.v);
+    const next = order[Math.max(0, Math.min(order.length - 1, at + (rng.chance(0.7) ? 1 : -1)))];
+    if (next === current.v) return null;
+    return allele(next, RESIST_ALLELES[next].dom, 'mutation');
+  }
   if (locus === 'tempA' || locus === 'tempB') {
     const pool = TENDENCY_IDS.filter((k) => k !== current.v);
     return allele(rng.pick(pool), rng.chance(0.5) ? 2 : 1, 'mutation');
@@ -254,6 +265,10 @@ function describeMutation(locus, a) {
   if (locus === 'build') return `Altered build: ${BUILD_ALLELES[a.v]?.name ?? a.v}`;
   if (locus.startsWith('feat_')) return `Novel structure: ${FEATURE_TAGS[a.v]?.name ?? a.v}`;
   if (locus.startsWith('apt_')) return `Shifted ${locus.slice(4)} aptitude`;
+  if (RESIST_LOCI.includes(locus)) {
+    const hazard = HAZARDS[HAZARD_IDS.find((h) => HAZARDS[h].resistLocus === locus)];
+    return `Adapted: ${RESIST_ALLELES[a.v].name.toLowerCase()} ${hazard.traitName}`;
+  }
   if (locus.startsWith('affinity')) return `Shifted affinity toward ${a.v}`;
   return `Rare temperament: ${a.v}`;
 }
@@ -399,6 +414,20 @@ export function predictOffspring(formParent, traitParent, archiveLevel = 0) {
     aptitudeRanges[stat] = { min: Math.min(...values), max: Math.max(...values), avg: values.reduce((s, v) => s + v, 0) / 4 };
   }
 
+  const resistanceDists = {};
+  for (const hazardId of HAZARD_IDS) {
+    const hazard = HAZARDS[hazardId];
+    const dist = distribution(hazard.resistLocus, (pair) => {
+      const value = expressResistance(pair);
+      if (value >= 0.99) return 'Full';
+      if (value >= 0.6) return 'Strong';
+      if (value > 0) return 'Partial';
+      return 'None';
+    });
+    // Only surface a hazard the pairing can actually do something about.
+    if ([...dist.keys()].some((k) => k !== 'None')) resistanceDists[hazardId] = dist;
+  }
+
   const affinityDist = distribution('affinitySecondary', (pair) => {
     const expressed = pair.find((a) => a.dom >= 2 && a.v);
     return expressed ? expressed.v : 'none';
@@ -439,6 +468,9 @@ export function predictOffspring(formParent, traitParent, archiveLevel = 0) {
     },
     aptitudes: aptitudeRanges,
     affinity: rank(affinityDist, archiveLevel),
+    resistances: Object.fromEntries(
+      Object.entries(resistanceDists).map(([id, d]) => [id, rank(d, archiveLevel)])
+    ),
     legacyMoves,
     echoes,
     archiveLevel,

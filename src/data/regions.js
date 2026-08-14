@@ -1,7 +1,8 @@
 // Regions and expedition sites.
 //
-// The vertical slice covers Hearthmere. Later regions slot in with the same
-// shape: a set of sites, each with its own encounter table and resources.
+// A site may carry a `hazard`. Hazardous sites are visible from the start —
+// the player should be able to see the locked door and understand exactly what
+// trait would open it, because that is the breeding puzzle.
 
 export const REGIONS = {
   hearthmere: {
@@ -40,24 +41,91 @@ export const REGIONS = {
         name: 'The Hollow Under the Hill',
         blurb: 'A chalk cave the local children are told not to enter. They enter anyway.',
         encounters: [
-          { species: 'glowgrub', weight: 42, level: [4, 8] },
-          { species: 'pebbleback', weight: 30, level: [5, 9] },
-          { species: 'cinderkit', weight: 16, level: [5, 8] },
-          { species: 'mossbun', weight: 12, level: [4, 7] },
+          { species: 'glowgrub', weight: 38, level: [4, 8] },
+          { species: 'pebbleback', weight: 26, level: [5, 9] },
+          { species: 'duskmew', weight: 20, level: [5, 9] },
+          { species: 'cinderkit', weight: 10, level: [5, 8] },
+          { species: 'mossbun', weight: 6, level: [4, 7] },
         ],
         resources: ['lantern_moss', 'river_stone'],
         requires: 'ch1_started',
       },
     ],
   },
+
+  emberbreak: {
+    id: 'emberbreak',
+    name: 'The Emberbreak Range',
+    blurb:
+      'Black rock and standing heat. Everything Embervale has ever built runs on the furnaces beneath it, and the furnaces run on Kinbeasts.',
+    unlockedBy: 'ch2_started',
+    sites: [
+      {
+        id: 'foothills',
+        name: 'Emberbreak Foothills',
+        blurb: 'Scrub, slag heaps and the sound of the works carrying down the valley.',
+        encounters: [
+          { species: 'brambletusk', weight: 30, level: [9, 13] },
+          { species: 'cinderkit', weight: 24, level: [9, 12] },
+          { species: 'pebbleback', weight: 22, level: [9, 13] },
+          { species: 'sparkmidge', weight: 24, level: [9, 12] },
+        ],
+        resources: ['ember_ash', 'iron_scrap'],
+      },
+      {
+        id: 'springs',
+        name: 'The Steaming Shallows',
+        blurb: 'Hot springs where the mountain water comes back up. Warm enough to sit in. Just.',
+        encounters: [
+          { species: 'shellip', weight: 34, level: [10, 13] },
+          { species: 'mudsprig', weight: 30, level: [10, 13] },
+          { species: 'sparkmidge', weight: 20, level: [10, 13] },
+          { species: 'cinderkit', weight: 16, level: [10, 13] },
+        ],
+        resources: ['thermal_salt', 'clearwater_flask'],
+      },
+      {
+        id: 'furnace_road',
+        name: 'The Furnace Road',
+        blurb: 'The service tunnels. Hot, but survivable, and the crews still walk it daily.',
+        encounters: [
+          { species: 'embermole', weight: 34, level: [11, 14] },
+          { species: 'cinderkit', weight: 24, level: [11, 14] },
+          { species: 'pebbleback', weight: 22, level: [11, 14] },
+          { species: 'brambletusk', weight: 20, level: [11, 14] },
+        ],
+        resources: ['ember_ash', 'iron_scrap', 'thermal_salt'],
+      },
+      {
+        id: 'deep_tunnels',
+        name: 'The Deep Tunnels',
+        blurb:
+          'Below the working levels, where the treated Kinbeasts were put when they stopped being useful. Nobody has been down since.',
+        // The chapter's gate. Visible from the first visit so the player can
+        // plan a bloodline toward it rather than discovering a wall.
+        hazard: 'heat',
+        encounters: [
+          { species: 'embermole', weight: 46, level: [13, 16] },
+          { species: 'cinderkit', weight: 22, level: [13, 16] },
+          { species: 'pebbleback', weight: 18, level: [13, 16] },
+          { species: 'sparkmidge', weight: 14, level: [13, 16] },
+        ],
+        resources: ['ember_ash', 'thermal_salt', 'crown_ledger'],
+      },
+    ],
+  },
 };
 
 export const RESOURCES = {
-  meadow_herb:     { id: 'meadow_herb',     name: 'Meadow Herb',      short: 'Herb',      desc: 'Common, bitter, and exactly what a stressed Kinbeast needs.' },
-  soft_reed:       { id: 'soft_reed',       name: 'Soft Reed',        short: 'Reed',        desc: 'Nesting material. The Nursery always wants more.' },
-  river_stone:     { id: 'river_stone',     name: 'River Stone',      short: 'Stone',      desc: 'Smooth and heavy. Used in habitat repair.' },
-  clearwater_flask:{ id: 'clearwater_flask',name: 'Clearwater Flask', short: 'Water', desc: 'Water clean enough to raise a hatchling on.' },
-  lantern_moss:    { id: 'lantern_moss',    name: 'Lantern Moss',     short: 'Moss',     desc: 'Glows faintly. Hatcheries use it to regulate light.' },
+  meadow_herb:     { id: 'meadow_herb',     name: 'Meadow Herb',      short: 'Herb',   desc: 'Common, bitter, and exactly what a stressed Kinbeast needs.' },
+  soft_reed:       { id: 'soft_reed',       name: 'Soft Reed',        short: 'Reed',   desc: 'Nesting material. The Nursery always wants more.' },
+  river_stone:     { id: 'river_stone',     name: 'River Stone',      short: 'Stone',  desc: 'Smooth and heavy. Used in habitat repair.' },
+  clearwater_flask:{ id: 'clearwater_flask',name: 'Clearwater Flask', short: 'Water',  desc: 'Water clean enough to raise a hatchling on.' },
+  lantern_moss:    { id: 'lantern_moss',    name: 'Lantern Moss',     short: 'Moss',   desc: 'Glows faintly. Hatcheries use it to regulate light.' },
+  ember_ash:       { id: 'ember_ash',       name: 'Ember Ash',        short: 'Ash',    desc: 'Fine, warm, and still faintly alive. Holds heat for days.' },
+  iron_scrap:      { id: 'iron_scrap',      name: 'Iron Scrap',       short: 'Iron',   desc: 'Offcuts from the works. Embervale throws away better metal than most places forge.' },
+  thermal_salt:    { id: 'thermal_salt',    name: 'Thermal Salt',     short: 'Salt',   desc: 'Crusted around the hot springs. Unstable, and useful because of it.' },
+  crown_ledger:    { id: 'crown_ledger',    name: 'Crown Ledger Page',short: 'Ledger', desc: 'A page of treatment records the Crown did not intend to leave behind.' },
 };
 
 export function getRegion(id) {
@@ -68,9 +136,14 @@ export function siteById(regionId, siteId) {
   return REGIONS[regionId]?.sites.find((s) => s.id === siteId);
 }
 
-/** Sites the player can currently visit, given their story flags. */
+/** Sites the player can currently see, given their story flags. */
 export function availableSites(regionId, flags) {
   const region = REGIONS[regionId];
   if (!region) return [];
   return region.sites.filter((s) => !s.requires || flags[s.requires]);
+}
+
+/** Regions the player has reached. */
+export function availableRegions(flags) {
+  return Object.values(REGIONS).filter((r) => !r.unlockedBy || flags[r.unlockedBy]);
 }

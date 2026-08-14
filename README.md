@@ -5,10 +5,11 @@ A monster-taming, breeding and sanctuary-management RPG for mobile browsers.
 You inherit a ruined breeding sanctuary, one egg nobody was supposed to find,
 and a family name that everyone in Alderreach remembers for the wrong reason.
 
-This repository contains the **vertical slice** described in §21 of the
-[Game Bible](docs/GAME_BIBLE.md): Briarhold Sanctuary, Hearthmere Fields, six
-Common species, wild bonding, 3v3 combat, the Nursery, same-species breeding
-with visible inheritance, one Echo sequence, and the Meadow Trial.
+This repository contains the **prologue through Chapter Two** of the campaign
+described in the [Game Bible](docs/GAME_BIBLE.md): Briarhold Sanctuary,
+Hearthmere Fields and the Emberbreak Range, twelve Common species, wild
+bonding, 3v3 combat, breeding with visible inheritance, environmental trait
+gating, Echo reconstruction, and two of the five Concord Seals.
 
 ---
 
@@ -53,24 +54,25 @@ It needs a local Chromium; set `CHROMIUM_PATH` if yours is somewhere unusual.
 | §9 Prologue + Chapter One | Playable start to finish, including the Meadow Trial. |
 | §10 Core loop | Explore → bond → build → pair → hatch → train → trial. |
 | §11 Wild bonding | Temperament-driven approaches. No capture probability. |
-| §12.3 Genome categories | Build, 4 colour channels, pattern, 6 feature slots, affinities, 6 aptitudes, temperament, Echoes. |
+| §12.3 Genome categories | Build, 4 colour channels, pattern, 7 feature slots, affinities, 6 aptitudes, 3 environmental resistances, temperament, Echoes. |
 | §12.4 Trait expression | Dominant, recessive, codominant, incomplete dominance, dormant. |
 | §12.5 Mutation | Low natural rate; catalysts raise it and cost Stability. |
+| §9 Chapter Two | Emberbreak, environmental trait gating, catalysts, incubation beds, the Ember Seal. |
 | §12.6 Breeding interface | Exact odds, gated behind Gene Archive level. |
 | §12.7 Life stages | Hatchling → Juvenile → Adult → Elder (with mentoring). |
 | §13 Combat | 3v3, initiative timeline, passives, temperament reactions, Bond Skills, four objective types. |
 | §14 Sanctuary | Habitats, projects, six facilities, habitat social simulation. |
 | §15 Progression | Rank, training toward genetic ceilings, bloodline naming. |
 | §19 UI direction | Field-journal interface, pedigree screen, Echo archive. |
-| Chapters Two–Nine, 24 further species, postgame | Not yet — see [ROADMAP](docs/ROADMAP.md). |
+| Chapters Three–Nine, 18 further species, postgame | Not yet — see [ROADMAP](docs/ROADMAP.md). |
 
 ---
 
 ## Architecture
 
 Vanilla ES modules. No framework, no bundler, no runtime dependencies. The
-whole game is roughly 5,000 lines split into a headless simulation and a thin
-DOM layer, so the rules can be unit-tested in Node without a browser.
+whole game is split into a headless simulation and a thin DOM layer, so the
+rules can be unit-tested in Node without a browser.
 
 ```
 index.html
@@ -78,11 +80,12 @@ src/
   main.js                 entry point
   styles.css              the entire interface, one file
   data/                   pure data — no logic, safe to extend
-    species.js            the six slice species + modular feature slots
+    species.js            the twelve species + modular feature slots
     moves.js              moves, anatomy requirements, Bond Skills
     affinities.js         11 affinities + the effectiveness chart
     temperaments.js       12 tendencies → named personalities → reactions
-    regions.js            Hearthmere sites, encounter tables, resources
+    regions.js            regions, sites, encounter tables, resources
+    environment.js        hazards and the tolerance model that gates terrain
     sanctuary.js          habitats, facilities, restoration projects
     trials.js             Concord Trials with roster entry gates
     echoes.js             memory fragments and the Echoes they assemble into
@@ -126,13 +129,32 @@ two alleles, so a locus has exactly four equally likely outcomes.
 Archive level only decides how precisely those numbers are *shown* to the
 player. Never fudge the displayed odds — degrade the wording instead.
 
+**4. A gate is a sum the player can read.** Hazardous places check
+`tolerance()`, which adds up an inherited resistance allele, elemental
+affinity, body plating and constitution. Several routes clear any given
+threshold, and the UI itemises every term — including the negative ones — for
+the party member who is holding you back. When adding a hazard, keep it a sum:
+a boolean "has trait X" gate would collapse the breeding puzzle into a
+checklist.
+
 ### Adding a species
 
 Add an entry to `src/data/species.js` (see §22 of the bible for the required
 fields) and a painter to `PAINTERS` in `src/render/creature.js`. Nothing else
 needs to change — genetics, combat, breeding and the UI all read from the data.
-The species test in `tests/genetics.test.js` will immediately check that every
-supported feature slot can be filled and every learnset move is performable.
+The tests will immediately check that every supported feature slot can be
+filled, every learnset move is performable, the species is reachable from some
+expedition site, and that no modular feature grants it anatomy it should not
+have (an amphibian must not be able to grow feathers).
+
+### Adding a locus
+
+Add it to `ALL_LOCI` in `src/genetics/genome.js`, express it in
+`expressGenome()`, and give it a default in `defaultPairFor()`. That last step
+is what lets existing saves migrate: `normaliseGenome()` backfills any missing
+locus from species defaults rather than randomising, so nobody loses a
+bloodline to a version bump. Bump `SAVE_VERSION` and the migration runs
+automatically.
 
 ### Adding a chapter
 

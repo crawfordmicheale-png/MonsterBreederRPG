@@ -8,6 +8,7 @@ export const HABITATS = {
   wetland: { id: 'wetland', name: 'Wetland',      affinities: ['tide', 'grove'],  capacity: 5, tone: '#6f9f9a' },
   grotto:  { id: 'grotto',  name: 'Stone Grotto', affinities: ['stone', 'light'], capacity: 5, tone: '#9a8d76' },
   forest:  { id: 'forest',  name: 'Forest',       affinities: ['grove', 'shade'], capacity: 6, tone: '#6f8f5c' },
+  furnace: { id: 'furnace', name: 'Furnace',      affinities: ['flame', 'stone'], capacity: 4, tone: '#b8663a' },
 };
 
 export const FACILITIES = {
@@ -18,6 +19,72 @@ export const FACILITIES = {
   clinic:      { id: 'clinic',      name: 'Clinic',       desc: 'Treats injury, stress and Instability.' },
   trainingYard:{ id: 'trainingYard',name: 'Training Yard',desc: 'Develops combat statistics toward genetic potential.' },
 };
+
+/**
+ * Incubation conditions, unlocked by the Hatchery upgrade.
+ *
+ * An egg raised under conditions that suit what is inside it comes out
+ * steadier. Raised under the wrong ones it still hatches — Kinbeasts are hardy
+ * — but it arrives less settled in itself.
+ */
+export const INCUBATION = {
+  neutral: {
+    id: 'neutral',
+    name: 'Even Warmth',
+    desc: 'The default. No effect either way.',
+    affinities: [],
+    stability: 0,
+    speed: 1,
+  },
+  hot: {
+    id: 'hot',
+    name: 'Furnace Bed',
+    desc: 'Ember ash banked around the clutch. Suits Flame and Stone.',
+    affinities: ['flame', 'stone', 'metal'],
+    stability: 10,
+    speed: 1.15,
+    cost: { ember_ash: 1 },
+  },
+  damp: {
+    id: 'damp',
+    name: 'Damp Moss',
+    desc: 'Cool and wet. Suits Tide and Grove.',
+    affinities: ['tide', 'grove'],
+    stability: 10,
+    speed: 1.15,
+    cost: { lantern_moss: 1 },
+  },
+  bright: {
+    id: 'bright',
+    name: 'Lantern Light',
+    desc: 'Steady light through the shell. Suits Light, Gale and Spark.',
+    affinities: ['light', 'gale', 'spark'],
+    stability: 10,
+    speed: 1.15,
+    cost: { lantern_moss: 1 },
+  },
+  dark: {
+    id: 'dark',
+    name: 'Sealed Dark',
+    desc: 'No light at all. Suits Shade and Aether.',
+    affinities: ['shade', 'aether'],
+    stability: 10,
+    speed: 1.15,
+    cost: { river_stone: 1 },
+  },
+};
+
+/** Stability and speed modifiers for an egg under a given condition. */
+export function incubationEffect(conditionId, offspringAffinities = []) {
+  const condition = INCUBATION[conditionId] ?? INCUBATION.neutral;
+  if (!condition.affinities.length) return { stability: 0, speed: 1, matched: null };
+  const matched = offspringAffinities.find((a) => condition.affinities.includes(a));
+  return {
+    stability: matched ? condition.stability : -8,
+    speed: matched ? condition.speed : 0.9,
+    matched: matched ?? null,
+  };
+}
 
 /**
  * Projects. `requires` is checked against game state; `cost` against resources.
@@ -140,6 +207,32 @@ export const PROJECTS = [
     apply: (g) => {
       g.facilities.echoHall = 1;
       g.note('The Echo Hall is swept and lit. Echoryx will not leave it.');
+    },
+  },
+  {
+    id: 'build_furnace',
+    name: 'Bank the Old Furnace',
+    desc: 'Relight the estate forge as a habitat. Somewhere hot for the Kinbeasts that need it.',
+    cost: { ember_ash: 3, iron_scrap: 3 },
+    effort: 3,
+    once: true,
+    available: (g) => g.flags.ch2_started && !g.habitatsUnlocked.includes('furnace'),
+    apply: (g) => {
+      g.unlockHabitat('furnace');
+      g.note('The forge is lit for the first time since the Night of Ash.');
+    },
+  },
+  {
+    id: 'upgrade_hatchery',
+    name: 'Fit the Hatchery Conditions',
+    desc: 'Separate incubation beds — heat, damp, light, dark. Eggs can be raised to suit what is in them.',
+    cost: { lantern_moss: 2, thermal_salt: 2, iron_scrap: 2 },
+    effort: 4,
+    once: true,
+    available: (g) => g.facilities.hatchery >= 1 && g.flags.ch2_started && g.facilities.hatchery < 2,
+    apply: (g) => {
+      g.facilities.hatchery = 2;
+      g.note('Four incubation beds, each held at its own condition. Orren is delighted and pretends not to be.');
     },
   },
   {
