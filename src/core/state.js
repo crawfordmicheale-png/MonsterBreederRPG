@@ -15,7 +15,7 @@ import {
   stageForLevel,
   nextId,
 } from './kinbeast.js';
-import { createWildGenome, expressGenome, STAT_KEYS } from '../genetics/genome.js';
+import { createWildGenome, expressGenome, normaliseGenome, STAT_KEYS } from '../genetics/genome.js';
 import {
   conceive,
   checkCompatibility,
@@ -23,13 +23,14 @@ import {
   computeVigor,
 } from '../genetics/breeding.js';
 import { getSpecies, SPECIES } from '../data/species.js';
-import { HABITATS, PROJECTS, projectById } from '../data/sanctuary.js';
-import { REGIONS, RESOURCES, siteById, availableSites } from '../data/regions.js';
+import { HABITATS, PROJECTS, projectById, INCUBATION, incubationEffect } from '../data/sanctuary.js';
+import { REGIONS, RESOURCES, siteById, availableSites, availableRegions } from '../data/regions.js';
 import { CHAPTERS } from '../data/story.js';
 import { ECHOES, FRAGMENTS, reconstructable } from '../data/echoes.js';
+import { tolerance, bestTolerance, partyClears, teamClears, HAZARDS } from '../data/environment.js';
 
 export const SAVE_KEY = 'broodkeepers-oath-save-v1';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 
 export const APTITUDES = {
   handler: { id: 'handler', name: 'Handler', desc: 'Wild Kinbeasts give ground faster, and you read temperaments early.' },
@@ -58,6 +59,8 @@ export class Game {
     this.resources = { meadow_herb: 2, soft_reed: 1, river_stone: 1 };
     this.facilities = { nursery: 0, hatchery: 0, archive: 0, echoHall: 0, clinic: 0, trainingYard: 0 };
     this.habitatsUnlocked = ['meadow'];
+    this.regionsUnlocked = ['hearthmere'];
+    this.region = 'hearthmere';
     this.habitats = { meadow: { ...HABITATS.meadow } };
     this.flags = {};
     this.seals = [];
@@ -290,7 +293,8 @@ export class Game {
     this.activityCount += weight;
     const hatched = [];
     for (const egg of this.eggs) {
-      egg.progress += weight * (this.facilities.hatchery ? 1.6 : 1);
+      const conditionSpeed = egg.incubation?.speed ?? 1;
+      egg.progress += weight * (this.facilities.hatchery ? 1.6 : 1) * conditionSpeed;
       if (egg.progress >= egg.needed) hatched.push(egg);
     }
     for (const egg of hatched) this.hatch(egg.id);
@@ -321,8 +325,46 @@ export class Game {
 
   // -- exploration ---------------------------------------------------------
 
-  sitesIn(regionId) {
+  sitesIn(regionId = this.region) {
     return availableSites(regionId, this.flags);
+  }
+
+  regions() {
+    return availableRegions(this.flags);
+  }
+
+  unlockRegion(id) {
+    if (!this.regionsUnlocked.includes(id)) this.regionsUnlocked.push(id);
+    this.region = id;
+  }
+
+  setRegion(id) {
+    if (this.regionsUnlocked.includes(id)) this.region = id;
+  }
+
+  /** Tolerance of one Kinbeast for a hazard. */
+  tolerance(beast, hazardId) {
+    return tolerance(beast, hazardId);
+  }
+
+  /** The team's best candidate for a hazard, and how far short it is. */
+  bestFor(hazardId) {
+    return bestTolerance(this.hazardParty(), hazardId);
+  }
+
+  /** Juveniles explore safe areas only (bible §12.7), so the party is adults. */
+  hazardParty() {
+    return this.activeTeam.filter((b) => b.stage === 'adult' || b.stage === 'elder');
+  }
+
+  /** Full party readout for a hazard: who goes, who is short, and by how much. */
+  partyFor(hazardId) {
+    return partyClears(this.hazardParty(), hazardId);
+  }
+
+  /** Can the current party enter a hazardous place? */
+  teamClears(hazardId) {
+    return teamClears(this.hazardParty(), hazardId);
   }
 
   /**
@@ -332,7 +374,15 @@ export class Game {
   explore(regionId, siteId) {
     const site = siteById(regionId, siteId);
     if (!site) return null;
+
+    // A hazardous site turns the team away rather than harming them. The
+    // refusal itself is the information the player needs.
+    if (site.hazard && !this.teamClears(site.hazard)) {
+      return { blocked: true, site, hazard: HAZARDS[site.hazard], party: this.partyFor(site.hazard) };
+    }
+
     this.stats.expeditions++;
+    this.flags[`visited_${regionId}`] = true;
 
     const warden = this.keeper.aptitude === 'warden';
     const found = [];
@@ -476,6 +526,21 @@ export class Game {
     return false;
   }
 
+  /** The catalyst raises mutation odds and costs Stability. Limited by supply. */
+  get catalystCost() {
+    return { thermal_salt: 1 };
+  }
+
+  canUseCatalyst() {
+    return Boolean(this.flags.catalysts_unlocked) && this.canAfford(this.catalystCost);
+  }
+
+  /** Incubation conditions the Hatchery can currently hold. */
+  incubationOptions() {
+    if (this.facilities.hatchery < 2) return [INCUBATION.neutral];
+    return Object.values(INCUBATION);
+  }
+
   /** Produce an egg. The genome is fixed here, not at hatching. */
   breed(formParentId, traitParentId, opts = {}) {
     const form = this.lookup(formParentId);
@@ -483,12 +548,28 @@ export class Game {
     const compat = this.compatibility(form, trait);
     if (!compat.ok) return { ok: false, reason: compat.issues[0], compat };
 
+    const catalyst = Boolean(opts.catalyst);
+    if (catalyst) {
+      if (!this.flags.catalysts_unlocked) return { ok: false, reason: 'You have not learned to use catalysts yet.' };
+      if (!this.canAfford(this.catalystCost)) return { ok: false, reason: 'No Thermal Salt left.' };
+    }
+
+    const conditionId = this.facilities.hatchery >= 2 ? opts.condition ?? 'neutral' : 'neutral';
+    const condition = INCUBATION[conditionId] ?? INCUBATION.neutral;
+    if (condition.cost && !this.canAfford(condition.cost)) {
+      return { ok: false, reason: `Not enough materials for the ${condition.name} bed.` };
+    }
+
     const r = relatedness(form, trait, this.lookup);
     const { genome, mutations, vigor, stability } = conceive(form, trait, this.rng, {
       relatedness: r,
-      catalyst: opts.catalyst,
+      catalyst,
       guaranteedEchoes: opts.guaranteedEchoes,
     });
+
+    if (catalyst) this.spend(this.catalystCost);
+    if (condition.cost) this.spend(condition.cost);
+    const incubation = incubationEffect(conditionId, expressGenome(genome).affinities);
 
     const generation = Math.max(form.generation, trait.generation) + 1;
     const needed = Math.round(10 * (1 / getSpecies(genome.species).fertility) + generation);
@@ -503,6 +584,9 @@ export class Game {
       mutations,
       vigor,
       stability,
+      condition: conditionId,
+      incubation,
+      catalyst,
       lineage: form.lineage ?? trait.lineage ?? null,
       laidAt: this.activityCount,
     };
@@ -522,6 +606,7 @@ export class Game {
     const index = this.eggs.findIndex((e) => e.id === eggId);
     if (index === -1) return null;
     const egg = this.eggs.splice(index, 1)[0];
+    const stabilityDelta = egg.incubation?.stability ?? 0;
     const beast = makeKinbeast({
       genome: egg.genome,
       rng: this.rng,
@@ -530,7 +615,7 @@ export class Game {
       generation: egg.generation,
       origin: 'bred',
       vigor: egg.vigor,
-      stability: egg.stability,
+      stability: Math.max(5, Math.min(100, egg.stability + stabilityDelta)),
       bond: 25,
       lineage: egg.lineage,
     });
@@ -540,6 +625,13 @@ export class Game {
     this.note(`An egg hatched: ${beast.name}, generation ${beast.generation}.`);
     if (egg.mutations.length) {
       for (const m of egg.mutations) this.note(`Mutation — ${m}.`);
+    }
+    if (stabilityDelta) {
+      this.note(
+        stabilityDelta > 0
+          ? `${beast.name} came out of the ${INCUBATION[egg.condition].name.toLowerCase()} settled in itself.`
+          : `${beast.name} was raised under conditions that did not suit it. Less steady than it might have been.`
+      );
     }
     this.checkStory();
     return { beast, mutations: egg.mutations };
@@ -623,6 +715,8 @@ export class Game {
       resources: this.resources,
       facilities: this.facilities,
       habitatsUnlocked: this.habitatsUnlocked,
+      regionsUnlocked: this.regionsUnlocked,
+      region: this.region,
       habitats: this.habitats,
       flags: this.flags,
       seals: this.seals,
@@ -647,6 +741,8 @@ export class Game {
       resources: save.resources ?? {},
       facilities: save.facilities ?? this.facilities,
       habitatsUnlocked: save.habitatsUnlocked ?? ['meadow'],
+      regionsUnlocked: save.regionsUnlocked ?? ['hearthmere'],
+      region: save.region ?? 'hearthmere',
       habitats: save.habitats ?? { meadow: { ...HABITATS.meadow } },
       flags: save.flags ?? {},
       seals: save.seals ?? [],
@@ -682,8 +778,8 @@ export class Game {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return null;
       const data = JSON.parse(raw);
-      if (data.version !== SAVE_VERSION) return null;
-      return new Game(data);
+      if (data.version > SAVE_VERSION) return null;
+      return new Game(migrate(data));
     } catch (err) {
       console.warn('Could not load save:', err);
       return null;
@@ -710,8 +806,23 @@ function serialiseBeast(beast) {
   return out;
 }
 
+/**
+ * Bring an older save forward. New loci are backfilled from species defaults
+ * rather than randomised, so nobody loses a bloodline to a version bump.
+ */
+function migrate(save) {
+  if (!save || save.version === SAVE_VERSION) return save;
+  for (const beast of save.roster ?? []) normaliseGenome(beast.genome);
+  for (const egg of save.eggs ?? []) normaliseGenome(egg.genome);
+  save.regionsUnlocked ??= ['hearthmere'];
+  save.region ??= 'hearthmere';
+  save.version = SAVE_VERSION;
+  return save;
+}
+
 function deserialiseBeast(data) {
   const beast = { ...data };
+  normaliseGenome(beast.genome);
   beast.phenotype = expressGenome(beast.genome);
   beast.stage = data.stage ?? stageForLevel(beast.level, beast.retired);
   beast.moves = data.moves?.length ? data.moves : defaultMoveset(beast);

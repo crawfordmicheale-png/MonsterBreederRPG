@@ -25,6 +25,20 @@ export const FRAGMENTS = {
     text: 'The sanctuary bell rung in a pattern nobody was taught. Not fire. Not visitors. Something with no signal of its own.',
     echo: 'night_of_ash_first',
   },
+  ash_ledger: {
+    id: 'ash_ledger',
+    name: 'A Hand That Wrote Numbers',
+    kind: 'person',
+    text: 'Someone in Crown grey writing figures in a ledger by furnace light, crossing out a line and writing a smaller number in its place. The same hand, over and over, for years.',
+    echo: 'the_treatment',
+  },
+  ash_nest: {
+    id: 'ash_nest',
+    name: 'A Nest That Stayed Quiet',
+    kind: 'moment',
+    text: 'Four eggs in furnace ash. Warm. Turned daily. Nothing inside any of them. The keeper turns them anyway, because stopping would mean admitting it.',
+    echo: 'the_treatment',
+  },
   meadow_first: {
     id: 'meadow_first',
     name: 'First Season in the Long Grass',
@@ -56,6 +70,21 @@ export const ECHOES = {
       'Echoryx presses its head against your leg and does not move for a long while.',
     ],
     reward: { flag: 'echo_night_of_ash_first', legacyMove: null },
+  },
+  the_treatment: {
+    id: 'the_treatment',
+    name: 'What the Treatment Cost',
+    requires: ['ash_ledger', 'ash_nest'],
+    summary:
+      'The Crown has been writing down the Quieting for years, in a ledger, in its own hand, one falling number at a time.',
+    scene: [
+      'The memory belongs to a furnace line that has been bred in Emberbreak for eleven generations. It is not a dramatic memory. That is what makes it hard to sit through.',
+      'A figure in Crown grey, writing by furnace light. Clutch sizes. Viable eggs. A number crossed out, a smaller one written beside it. Then the same again, a season later. Then again.',
+      'And a keeper — not Crown, just a keeper — turning four warm eggs in the ash every morning. Every one of them empty. She turns them anyway.',
+      'She keeps turning them for two more years.',
+      'Echoryx will not go near the furnace habitat for the rest of the day.',
+    ],
+    reward: { flag: 'echo_the_treatment' },
   },
   briarhold_before: {
     id: 'briarhold_before',

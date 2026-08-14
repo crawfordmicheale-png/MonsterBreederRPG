@@ -9,7 +9,8 @@ import { beastRow, sectionHead, emptyState, affinityTags, vigorTag, stabilityTag
 import { openProfile } from './profile.js';
 import { getSpecies, BROOD_FAMILIES, FEATURE_TAGS } from '../data/species.js';
 import { RESOURCES, REGIONS } from '../data/regions.js';
-import { HABITATS, FACILITIES } from '../data/sanctuary.js';
+import { HAZARDS } from '../data/environment.js';
+import { HABITATS, FACILITIES, INCUBATION } from '../data/sanctuary.js';
 import { STAGE_INFO, personality, computeStats } from '../core/kinbeast.js';
 import { predictOffspring, relatedness, relatednessLabel, socialCompatibility } from '../genetics/breeding.js';
 import { colorToCss, STAT_KEYS, STAT_LABELS, PATTERN_ALLELES } from '../genetics/genome.js';
@@ -38,8 +39,8 @@ export function sanctuaryScreen(app) {
     );
   } else if (!game.chapter) {
     root.appendChild(
-      div({ class: 'card' }, el('h3', {}, 'The slice ends here'),
-        p({ class: 'muted' }, 'Chapter Two waits on the Emberbreak Range. Everything you have built carries forward — keep breeding, the sanctuary is yours.'))
+      div({ class: 'card' }, el('h3', {}, 'The road goes on'),
+        p({ class: 'muted' }, 'Greenmantle Fen is next, and it is not built yet. Everything you have raised carries forward — keep breeding; the sanctuary is yours.'))
     );
   }
 
@@ -58,7 +59,14 @@ export function sanctuaryScreen(app) {
               div({ class: 'nm' }, `Egg — generation ${egg.generation}`),
               div({ class: 'sp' }, `${egg.parentNames[0]} × ${egg.parentNames[1]}`),
               div({ style: { marginTop: '5px' } }, meter(egg.progress, egg.needed, 'egg')),
-              div({ class: 'tiny' }, `${Math.max(0, Math.ceil(egg.needed - egg.progress))} more activity to hatching`)
+              div({ class: 'tiny' }, `${Math.max(0, Math.ceil(egg.needed - egg.progress))} more activity to hatching`),
+              egg.condition && egg.condition !== 'neutral'
+                ? div({ class: 'chip-row' },
+                    tag(INCUBATION[egg.condition].name, egg.incubation?.matched ? 'good' : 'warn'),
+                    egg.catalyst ? tag('Catalysed', 'bad') : null)
+                : egg.catalyst
+                ? div({ class: 'chip-row' }, tag('Catalysed', 'bad'))
+                : null
             )
           )
         )
@@ -155,7 +163,7 @@ export function sanctuaryScreen(app) {
   }
 
   // --- trials ---
-  const trials = availableTrials(game).filter((t) => game.flags.ch1_started);
+  const trials = availableTrials(game);
   if (trials.length) {
     root.appendChild(sectionHead(null, 'Concord Trials'));
     root.appendChild(
@@ -230,7 +238,26 @@ export function exploreScreen(app) {
     return root;
   }
 
-  const region = REGIONS.hearthmere;
+  const regions = game.regions();
+  const region = REGIONS[game.region] ?? regions[0];
+
+  if (regions.length > 1) {
+    root.appendChild(
+      div(
+        { class: 'btn-row' },
+        regions.map((r) =>
+          button(r.name, {
+            class: `btn small${r.id === region.id ? ' primary' : ''}`,
+            onclick: () => {
+              game.setRegion(r.id);
+              app.afterChange();
+            },
+          })
+        )
+      )
+    );
+  }
+
   root.appendChild(sectionHead('Region', region.name));
   root.appendChild(p({ class: 'muted' }, region.blurb));
 
@@ -248,28 +275,100 @@ export function exploreScreen(app) {
   root.appendChild(
     div(
       { class: 'stack' },
-      game.sitesIn('hearthmere').map((site) =>
-        div(
-          { class: 'card tight' },
-          el('h3', { style: { margin: 0 } }, site.name),
-          p({ class: 'tiny', style: { margin: '3px 0 8px' } }, site.blurb),
-          div(
-            { class: 'spread' },
-            span({ class: 'tiny' }, site.resources.map((r) => RESOURCES[r].name).join(' · ')),
-            button('Set out', { class: 'btn small primary', onclick: () => runExpedition(app, site) })
-          )
-        )
-      )
+      game.sitesIn(region.id).map((site) => siteCard(app, site))
     )
   );
 
   return root;
 }
 
+function siteCard(app, site) {
+  const game = app.game;
+  const hazard = site.hazard ? HAZARDS[site.hazard] : null;
+  const party = hazard ? game.partyFor(site.hazard) : null;
+  const passable = !hazard || party.ok;
+
+  const card = div(
+    { class: 'card tight' },
+    div(
+      { class: 'spread' },
+      el('h3', { style: { margin: 0 } }, site.name),
+      hazard ? tag(hazard.name, passable ? 'good' : 'bad') : null
+    ),
+    p({ class: 'tiny', style: { margin: '3px 0 8px' } }, site.blurb)
+  );
+
+  // A hazardous site explains itself in full: the threshold, every member of
+  // the party that would go in, and the terms that make up each score. The
+  // breeding puzzle is only fair if the player can read the sum.
+  if (hazard) {
+    card.appendChild(
+      div(
+        { class: passable ? 'callout' : 'callout quiet' },
+        div({ style: { marginBottom: '6px' } }, hazard.blurb),
+        div({ class: 'tiny', style: { marginBottom: '6px' } },
+          `The crews go in threes. All three need ${hazard.traitName} tolerance ${hazard.threshold}.`),
+        party.shortHanded
+          ? div({ class: 'tiny', style: { color: 'var(--danger)' } },
+              `Only ${party.members.length} adult${party.members.length === 1 ? '' : 's'} on your active team. You need ${party.needed}.`)
+          : null,
+        div(
+          { class: 'stack', style: { gap: '7px' } },
+          party.members.map(({ beast, tolerance: t }) =>
+            div(
+              {},
+              div(
+                { class: 'spread' },
+                span({ class: 'row' }, portrait(beast, 30, { stage: false, shadow: false }), beast.name),
+                tag(`${t.score} / ${t.threshold}`, t.ok ? 'good' : 'bad')
+              ),
+              meter(t.score, t.threshold, t.ok ? 'hp' : 'hp low')
+            )
+          )
+        ),
+        party.weakest && !party.ok
+          ? div(
+              { style: { marginTop: '8px' } },
+              div({ class: 'tiny', style: { marginBottom: '3px' } },
+                `${party.weakest.beast.name} is the one holding you back — short by ${party.weakest.tolerance.shortfall}:`),
+              party.weakest.tolerance.parts.map((part) =>
+                div(
+                  { class: 'prob-row' },
+                  span({}, titleCase(part.label)),
+                  span({ class: 'p', style: { color: part.value < 0 ? 'var(--danger)' : 'var(--good)' } },
+                    `${part.value > 0 ? '+' : ''}${part.value}`)
+                )
+              ),
+              div({ class: 'tiny', style: { marginTop: '6px' } },
+                `Breed the ${hazard.traitName} trait into a body that suits it. Two copies of the allele beat one, and a matching affinity or plating adds to the same total.`)
+            )
+          : null
+      )
+    );
+  }
+
+  card.appendChild(
+    div(
+      { class: 'spread' },
+      span({ class: 'tiny' }, site.resources.map((r) => RESOURCES[r].name).join(' · ')),
+      button(passable ? 'Set out' : 'Too dangerous', {
+        class: `btn small${passable ? ' primary' : ''}`,
+        disabled: !passable,
+        onclick: () => runExpedition(app, site),
+      })
+    )
+  );
+  return card;
+}
+
 function runExpedition(app, site) {
   const game = app.game;
-  const result = game.explore('hearthmere', site.id);
+  const result = game.explore(game.region, site.id);
   if (!result) return;
+  if (result.blocked) {
+    toast(`${result.hazard.name} turns the team back.`);
+    return;
+  }
   app.afterChange();
 
   sheet((close) => {
@@ -337,13 +436,23 @@ export function rosterScreen(app) {
     return at - bt || b.level - a.level;
   });
 
+  // Once a hazard is in play, the roster is also the shortlist for it.
+  const hazardId = game.beat?.id === 'ch2_heatproof' ? 'heat' : null;
+
   root.appendChild(
     div(
       { class: 'list' },
       ordered.map((beast) =>
         beastRow(beast, {
           onclick: () => openProfile(app, beast),
-          trailing: team.has(beast.id) ? tag('Team', 'good') : null,
+          trailing: hazardId
+            ? (() => {
+                const t = game.tolerance(beast, hazardId);
+                return tag(`${HAZARDS[hazardId].traitName} ${t.score}`, t.ok ? 'good' : 'bad');
+              })()
+            : team.has(beast.id)
+            ? tag('Team', 'good')
+            : null,
         })
       )
     )
@@ -406,6 +515,8 @@ export function breedScreen(app) {
   }
 
   const state = app.breedState ?? (app.breedState = { form: null, trait: null });
+  state.condition ??= 'neutral';
+  state.catalyst ??= false;
   const pool = game.breedable;
 
   root.appendChild(sectionHead('Nursery', 'Pairing'));
@@ -445,14 +556,18 @@ export function breedScreen(app) {
 
   if (compat.ok) {
     root.appendChild(predictionView(game, form, trait));
+    root.appendChild(clutchOptions(app, state));
     root.appendChild(
       button('Pair them', {
         class: 'btn primary full',
         onclick: () => {
-          const res = game.breed(form.id, trait.id);
+          const res = game.breed(form.id, trait.id, {
+            catalyst: state.catalyst,
+            condition: state.condition,
+          });
           if (!res.ok) return toast(res.reason);
           toast('An egg.');
-          app.breedState = { form: null, trait: null };
+          app.breedState = { form: null, trait: null, condition: state.condition, catalyst: false };
           app.afterChange();
           if (res.mutations.length) {
             sheet(() => div({ class: 'stack' },
@@ -495,6 +610,67 @@ export function breedScreen(app) {
           )
         )
       )
+    );
+  }
+
+  return root;
+}
+
+/** Catalyst and incubation choices — everything decided at the moment of laying. */
+function clutchOptions(app, state) {
+  const game = app.game;
+  const root = div({ class: 'stack' });
+
+  if (game.flags.catalysts_unlocked) {
+    const salt = game.resources.thermal_salt ?? 0;
+    root.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: `aptitude-card${state.catalyst ? ' selected' : ''}`,
+          disabled: salt < 1,
+          onclick: () => {
+            state.catalyst = !state.catalyst;
+            app.render();
+          },
+        },
+        div({ class: 'spread' },
+          div({ style: { fontWeight: '600' } }, 'Use a trait catalyst'),
+          tag(`${salt} Thermal Salt`, salt ? '' : 'bad')
+        ),
+        p({ class: 'tiny', style: { margin: '2px 0 0' } },
+          'Roughly six times the mutation rate, and a real Stability cost. Worth it when a line has gone predictable and dull.')
+      )
+    );
+  }
+
+  if (game.facilities.hatchery >= 2) {
+    root.appendChild(el('p', { class: 'eyebrow' }, 'Incubation bed'));
+    root.appendChild(
+      div(
+        { class: 'btn-row' },
+        game.incubationOptions().map((condition) => {
+          const affordable = !condition.cost || game.canAfford(condition.cost);
+          return button(condition.name, {
+            class: `btn small${state.condition === condition.id ? ' primary' : ''}`,
+            disabled: !affordable,
+            onclick: () => {
+              state.condition = condition.id;
+              app.render();
+            },
+          });
+        })
+      )
+    );
+    const chosen = INCUBATION[state.condition] ?? INCUBATION.neutral;
+    root.appendChild(
+      div({ class: 'callout quiet' },
+        div({}, chosen.desc),
+        chosen.affinities.length
+          ? div({ class: 'tiny', style: { marginTop: '4px' } },
+              `Matches ${chosen.affinities.join(', ')}. A mismatch still hatches, just less settled.`)
+          : null)
     );
   }
 
@@ -571,6 +747,9 @@ function predictionView(game, form, trait) {
     rows('Primary coat', pred.colors.colorPrimary),
     rows('Eyes', pred.colors.colorEye),
     ...Object.entries(pred.features).map(([slot, list]) => rows(titleCase(slot), list)),
+    ...Object.entries(pred.resistances ?? {}).map(([hazardId, list]) =>
+      rows(`${HAZARDS[hazardId].traitName} resistance`, list)
+    ),
     rows('Temperament (first)', pred.temperament.first.map((r) => ({ ...r, label: titleCase(r.label) }))),
     rows('Temperament (second)', pred.temperament.second.map((r) => ({ ...r, label: titleCase(r.label) }))),
     aptitudeRows,

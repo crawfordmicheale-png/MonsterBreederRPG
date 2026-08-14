@@ -42,6 +42,15 @@ export const MOVES = {
   warmlantern:{ id: 'warmlantern',name: 'Warm Lantern',  affinity: 'light', power: 0,  acc: 1,    cost: 14, kind: 'heal',     target: 'allAllies', requires: [], learnable: true, effect: { heal: 20 }, desc: 'A steady glow that eases the whole team.' },
   dawnflare:  { id: 'dawnflare',  name: 'Dawnflare',     affinity: 'light', power: 44, acc: 0.9,  cost: 12, kind: 'focus',    target: 'enemy', requires: [], learnable: true,  effect: { blind: 2 }, desc: 'A rising flare that leaves the target dazzled.' },
 
+  // ---- new in the Emberbreak chapter ----
+  goringcharge:{ id: 'goringcharge',name: 'Goring Charge',  affinity: 'grove', power: 50, acc: 0.88, cost: 12, kind: 'physical', target: 'enemy', requires: ['horn'], learnable: true, desc: 'A committed run behind lowered tusks. Requires horns or tusks.' },
+  mirebind:   { id: 'mirebind',   name: 'Mirebind',      affinity: 'tide',  power: 22, acc: 0.92, cost: 9,  kind: 'focus',    target: 'allEnemies', requires: [], learnable: true, effect: { slow: 2 }, desc: 'Thick water underfoot. Slows the whole opposing line.' },
+  chainbolt:  { id: 'chainbolt',  name: 'Chainbolt',     affinity: 'spark', power: 30, acc: 0.93, cost: 11, kind: 'focus',    target: 'allEnemies', requires: [], learnable: true, desc: 'A charge that jumps from one target to the next.' },
+  nightveil:  { id: 'nightveil',  name: 'Nightveil',     affinity: 'shade', power: 0,  acc: 1,    cost: 9,  kind: 'status',   target: 'allEnemies', requires: [], learnable: true, effect: { blind: 3 }, desc: 'Draws the dark in close. Enemies lose their aim.' },
+  shellbash:  { id: 'shellbash',  name: 'Shellbash',     affinity: 'stone', power: 41, acc: 0.93, cost: 8,  kind: 'physical', target: 'enemy', requires: ['shell'], learnable: true, desc: 'Puts the whole shell behind it. Requires a shell.' },
+  burrowheat: { id: 'burrowheat', name: 'Burrowheat',    affinity: 'flame', power: 52, acc: 0.9,  cost: 13, kind: 'physical', target: 'enemy', requires: [], learnable: true, desc: 'Vanishes under the field and comes up beneath the target.' },
+  emberveil:  { id: 'emberveil',  name: 'Emberveil',     affinity: 'flame', power: 0,  acc: 1,    cost: 10, kind: 'status',   target: 'allAllies', requires: [], learnable: true, effect: { guardBuffTeam: 3 }, desc: 'A curtain of rising heat between the team and the field.' },
+
   // ---- shade ----
   fadeclaw:   { id: 'fadeclaw',   name: 'Fadeclaw',      affinity: 'shade', power: 39, acc: 0.94, cost: 7,  kind: 'physical', target: 'enemy', requires: [], learnable: true,  desc: 'A strike that arrives from a direction that was not there.' },
 
@@ -57,6 +66,12 @@ export const MOVES = {
   bond_brookfin:  { id: 'bond_brookfin',  name: 'Clearwater Rite',affinity: 'tide',  power: 0,  acc: 1, cost: 0, kind: 'heal',  target: 'allAllies', requires: [], learnable: false, bond: true, effect: { heal: 30, cleanse: 2, guardBuffTeam: 2 }, desc: 'Bond Skill — clean water over every wound at once.' },
   bond_pebbleback:{ id: 'bond_pebbleback',name: 'Standing Stone', affinity: 'stone', power: 0,  acc: 1, cost: 0, kind: 'status',target: 'allAllies', requires: [], learnable: false, bond: true, effect: { guardBuffTeam: 4 }, desc: 'Bond Skill — the line does not move for four rounds.' },
   bond_galecrest: { id: 'bond_galecrest', name: 'Rising Column',  affinity: 'gale',  power: 0,  acc: 1, cost: 0, kind: 'status',target: 'allAllies', requires: [], learnable: false, bond: true, effect: { hasteTeam: 4, cleanse: 1 }, desc: 'Bond Skill — a lifting wind under the whole team.' },
+  bond_brambletusk:{ id: 'bond_brambletusk',name: 'Bramble Wall',  affinity: 'grove', power: 0,  acc: 1, cost: 0, kind: 'status',target: 'allAllies', requires: [], learnable: false, bond: true, effect: { guardBuffTeam: 4 }, desc: 'Bond Skill — thorns close over the whole line.' },
+  bond_mudsprig:  { id: 'bond_mudsprig',  name: 'Bogfall',        affinity: 'tide',  power: 34, acc: 0.95, cost: 0, kind: 'focus', target: 'allEnemies', requires: [], learnable: false, bond: true, effect: { slow: 4 }, desc: 'Bond Skill — the ground gives way under every enemy at once.' },
+  bond_sparkmidge:{ id: 'bond_sparkmidge',name: 'Stormswarm',     affinity: 'spark', power: 40, acc: 0.94, cost: 0, kind: 'focus', target: 'allEnemies', requires: [], learnable: false, bond: true, effect: { priority: 1 }, desc: 'Bond Skill — the air itself turns against them.' },
+  bond_duskmew:   { id: 'bond_duskmew',   name: 'Long Shadow',    affinity: 'shade', power: 58, acc: 0.95, cost: 0, kind: 'physical', target: 'enemy', requires: [], learnable: false, bond: true, effect: { blind: 3 }, desc: 'Bond Skill — one strike from somewhere that was not there.' },
+  bond_shellip:   { id: 'bond_shellip',   name: 'Safe Harbour',   affinity: 'tide',  power: 0,  acc: 1, cost: 0, kind: 'heal',  target: 'allAllies', requires: [], learnable: false, bond: true, effect: { heal: 32, guardBuffTeam: 3 }, desc: 'Bond Skill — everyone gets behind the shell.' },
+  bond_embermole: { id: 'bond_embermole', name: 'Furnace Breach', affinity: 'flame', power: 66, acc: 0.92, cost: 0, kind: 'physical', target: 'enemy', requires: [], learnable: false, bond: true, effect: { burn: 0.6 }, desc: 'Bond Skill — opens the ground and lets the heat up through it.' },
   bond_glowgrub:  { id: 'bond_glowgrub',  name: 'Lantern Hour',   affinity: 'light', power: 0,  acc: 1, cost: 0, kind: 'heal',  target: 'allAllies', requires: [], learnable: false, bond: true, effect: { heal: 34, focusTeam: 4 }, desc: 'Bond Skill — a long warm light that steadies everyone.' },
 };
 

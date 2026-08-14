@@ -1,6 +1,6 @@
 // The Kinbeast profile sheet — the field-journal page for one individual.
 
-import { div, span, el, p, button, tag, sheet, toast, labelledMeter, titleCase } from './dom.js';
+import { div, span, el, p, button, tag, sheet, toast, labelledMeter, meter, titleCase } from './dom.js';
 import { portrait } from './portrait.js';
 import {
   affinityTags,
@@ -18,6 +18,7 @@ import { personality, STAGE_INFO, availableMoves, upcomingMoves, retireToElder }
 import { FRAGMENTS } from '../data/echoes.js';
 import { relatedness, relatednessLabel } from '../genetics/breeding.js';
 import { REACTIONS } from '../data/temperaments.js';
+import { HAZARDS, HAZARD_IDS, tolerance } from '../data/environment.js';
 
 export function openProfile(app, beast) {
   sheet((close) => renderProfile(app, beast, close));
@@ -167,6 +168,31 @@ function renderProfile(app, beast, close) {
       })
     )
   );
+
+  // --- environmental tolerance ---
+  // Only surfaced once the player has met a hazard, so the slice's opening
+  // hours stay uncluttered.
+  if (game.flags.ch2_started) {
+    root.appendChild(el('h3', {}, 'Environmental tolerance'));
+    root.appendChild(
+      div(
+        { class: 'card tight' },
+        HAZARD_IDS.map((hazardId) => {
+          const hazard = HAZARDS[hazardId];
+          const t = tolerance(beast, hazardId);
+          return div(
+            { style: { marginBottom: '8px' } },
+            div(
+              { class: 'spread' },
+              span({ style: { fontWeight: '600', fontSize: '13px' } }, hazard.traitName),
+              tag(`${t.score} / ${hazard.threshold}`, t.ok ? 'good' : t.score > hazard.threshold * 0.7 ? 'warn' : 'bad')
+            ),
+            meter(t.score, hazard.threshold, t.ok ? 'hp' : 'hp low')
+          );
+        })
+      )
+    );
+  }
 
   // --- appearance / genetics ---
   root.appendChild(el('h3', {}, 'Inherited appearance'));

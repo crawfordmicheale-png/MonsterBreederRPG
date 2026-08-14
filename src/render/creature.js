@@ -338,6 +338,19 @@ function drawTail(ctx, kind, { c, p, t }, x, y, dir = 1) {
         outline(ctx, i === 0 ? shade(c.accent, 4) : shade(c.secondary, -2), 3.4);
       }
       break;
+    case 'tail_barb':
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(dir * 9, -2, dir * 15, -7);
+      outline(ctx, shade(c.primary, -6), 3);
+      ctx.beginPath();
+      ctx.moveTo(dir * 13, -5);
+      ctx.lineTo(dir * 20, -10);
+      ctx.lineTo(dir * 13, -9);
+      ctx.closePath();
+      ctx.fillStyle = shade(c.accent, 6);
+      ctx.fill();
+      break;
     case 'tail_stub':
     default:
       fillBlob(ctx, dir * 7, -1, 4, 3.6, shade(c.secondary, 2));
@@ -373,6 +386,18 @@ function drawCrest(ctx, kind, { c, t }, x, y) {
         fillBlob(ctx, i * 4, -4 - Math.abs(i), 3.4, 2.6, shade(c.accent, i === 0 ? 6 : -2));
       }
       break;
+    case 'crest_frill':
+      ctx.beginPath();
+      ctx.moveTo(-6, 1);
+      for (let i = -2; i <= 2; i++) {
+        ctx.quadraticCurveTo(i * 3, -9, i * 3 + 1.5, -1);
+      }
+      ctx.lineTo(6, 1);
+      ctx.closePath();
+      ctx.fillStyle = shade(c.secondary, 4);
+      ctx.fill();
+      outline(ctx, shade(c.accent, -4), 0.8);
+      break;
     default:
       break;
   }
@@ -397,20 +422,79 @@ function drawGlow(ctx, kind, { c, t }, x, y, r) {
 }
 
 function drawWings(ctx, kind, { c, t }, x, y) {
-  const flap = Math.sin(t / 420) * 0.18;
-  const long = kind === 'wing_broad' ? 1 : 0.72;
+  const gauze = kind === 'wing_gauze' || kind === 'wing_veined';
+  const flap = Math.sin(t / (gauze ? 130 : 420)) * (gauze ? 0.3 : 0.18);
+  const long = kind === 'wing_broad' ? 1 : gauze ? 1.1 : 0.72;
+  for (const dir of [-1, 1]) {
+    // Gauze wings come in pairs, the way a dragonfly's do.
+    for (const pair of gauze ? [0, 1] : [0]) {
+      ctx.save();
+      ctx.translate(x + dir * 6 - pair * dir * 3, y + pair * 4);
+      ctx.rotate(dir * (0.35 + flap - pair * 0.4));
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(dir * 16 * long, -10, dir * 24 * long, 4);
+      ctx.quadraticCurveTo(dir * 12 * long, 6, 0, 6);
+      ctx.closePath();
+      if (gauze) {
+        ctx.globalAlpha = kind === 'wing_veined' ? 0.58 : 0.42;
+        ctx.fillStyle = colorToCss(c.secondary, 16);
+        ctx.fill();
+        ctx.globalAlpha = 0.8;
+        outline(ctx, shade(c.accent, 6), 0.7);
+      } else {
+        ctx.fillStyle = shade(c.secondary, -6);
+        ctx.fill();
+        outline(ctx, shade(c.primary, -14), 0.9);
+      }
+      ctx.restore();
+    }
+  }
+}
+
+function drawHorns(ctx, kind, { c }, x, y, spread) {
+  if (!kind || kind === 'horn_none') return;
+  const horn = shade(c.accent, 10);
   for (const dir of [-1, 1]) {
     ctx.save();
-    ctx.translate(x + dir * 6, y);
-    ctx.rotate(dir * (0.35 + flap));
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(dir * 16 * long, -10, dir * 24 * long, 4);
-    ctx.quadraticCurveTo(dir * 12 * long, 6, 0, 6);
-    ctx.closePath();
-    ctx.fillStyle = shade(c.secondary, -6);
-    ctx.fill();
-    outline(ctx, shade(c.primary, -14), 0.9);
+    ctx.translate(x + dir * spread, y);
+    ctx.scale(dir, 1);
+    switch (kind) {
+      case 'horn_tusk':
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(4, -3, 4.5, -10);
+        ctx.quadraticCurveTo(2.4, -4, 0, 1.6);
+        ctx.fillStyle = horn;
+        ctx.fill();
+        break;
+      case 'horn_curl':
+        ctx.beginPath();
+        ctx.arc(2.5, -4, 4.2, Math.PI * 0.9, Math.PI * 2.1);
+        outline(ctx, horn, 2.6);
+        break;
+      case 'horn_spike':
+        ctx.beginPath();
+        ctx.moveTo(-1.6, 0);
+        ctx.lineTo(1.4, -9);
+        ctx.lineTo(2.2, 0);
+        ctx.closePath();
+        ctx.fillStyle = horn;
+        ctx.fill();
+        break;
+      case 'horn_branch':
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(2, -8);
+        ctx.moveTo(1.2, -5);
+        ctx.lineTo(5, -7.5);
+        ctx.moveTo(1.8, -7);
+        ctx.lineTo(-1.5, -10);
+        outline(ctx, horn, 1.5);
+        break;
+      default:
+        break;
+    }
     ctx.restore();
   }
 }
@@ -658,6 +742,289 @@ const PAINTERS = {
     }
     drawEyes(ctx, hx + 1, hy - 1, 4, 2, c.eye);
     fillBlob(ctx, hx + 6, hy + 4, 3.4, 2.2, shade(c.accent, -8));
+  },
+
+  // Brambletusk: heavy boar, low head, tusks.
+  boar(ctx, s) {
+    const { p, c } = s;
+    const bodyY = -22;
+    drawTail(ctx, p.features.tail ?? 'tail_stub', s, -22, -14, -1);
+
+    for (const dx of [-14, -7, 8, 15]) {
+      ctx.fillStyle = shade(c.accent, -8);
+      ctx.fillRect(dx - 2.2, bodyY + 11, 4.4, 13);
+    }
+
+    blob(ctx, -2, bodyY, 25, 16, -0.08);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = colorToCss(c.primary);
+    ctx.fillRect(-40, -60, 80, 80);
+    paintCodominant(ctx, s, [-27, bodyY - 16, 23, bodyY + 16]);
+    paintPattern(ctx, s, [-24, bodyY - 13, 20, bodyY + 12]);
+    ctx.restore();
+
+    // Bark shoulders — the identifying feature.
+    ctx.fillStyle = shade(c.secondary, -10);
+    for (let i = 0; i < 4; i++) {
+      fillBlob(ctx, -12 + i * 5, bodyY - 11 + Math.abs(i - 1.5) * 1.4, 4, 2.6, shade(c.secondary, -8 + i));
+    }
+
+    const hx = 19, hy = bodyY + 3;
+    fillBlob(ctx, hx, hy, 11, 9, colorToCss(c.primary, 3));
+    ctx.beginPath();
+    ctx.moveTo(hx + 5, hy - 1);
+    ctx.lineTo(hx + 14, hy + 3);
+    ctx.lineTo(hx + 5, hy + 6);
+    ctx.closePath();
+    ctx.fillStyle = shade(c.secondary, 4);
+    ctx.fill();
+    drawHorns(ctx, p.features.horn ?? 'horn_tusk', s, hx + 10, hy + 4, 2.6);
+    drawEars(ctx, p.features.ears ?? 'ears_round', s, hx - 2, hy - 7, 5, 0.85);
+    drawCrest(ctx, p.features.crest ?? 'crest_none', s, hx - 6, hy - 10);
+    drawEyes(ctx, hx + 1, hy - 2, 4, 1.6, c.eye);
+  },
+
+  // Mudsprig: squat amphibian, sprout on the head.
+  frog(ctx, s) {
+    const { p, c, t } = s;
+    const bodyY = -14;
+    drawTail(ctx, p.features.tail ?? 'tail_paddle', s, -16, -6, -1);
+
+    // Splayed legs.
+    for (const dir of [-1, 1]) {
+      fillBlob(ctx, dir * 17, -4, 6.5, 3.6, shade(c.accent, -2), dir * 0.5);
+      fillBlob(ctx, dir * 12, -2, 5, 3, shade(c.secondary, -6));
+    }
+
+    blob(ctx, 0, bodyY, 19, 13);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = colorToCss(c.primary);
+    ctx.fillRect(-40, -60, 80, 80);
+    paintCodominant(ctx, s, [-19, bodyY - 13, 19, bodyY + 13]);
+    paintPattern(ctx, s, [-17, bodyY - 10, 17, bodyY + 10]);
+    ctx.restore();
+    fillBlob(ctx, 0, bodyY + 6, 12, 6, shade(c.secondary, 8));
+
+    const hy = bodyY - 10;
+    fillBlob(ctx, 0, hy, 13, 8.5, colorToCss(c.primary, 4));
+    // Wide amphibian mouth.
+    ctx.beginPath();
+    ctx.arc(0, hy + 2, 7, 0.18 * Math.PI, 0.82 * Math.PI);
+    outline(ctx, shade(c.accent, -14), 1.2);
+    // Eyes sit high and proud of the skull.
+    for (const dir of [-1, 1]) fillBlob(ctx, dir * 6, hy - 6, 4, 4, colorToCss(c.primary, 8));
+    drawEyes(ctx, 0, hy - 6.5, 6, 2.2, c.eye);
+    drawCrest(ctx, p.features.crest ?? 'crest_moss', s, 0, hy - 11 + Math.sin(t / 800) * 0.6);
+    drawGlow(ctx, p.features.glow, s, 0, bodyY + 3, 3.6);
+  },
+
+  // Sparkmidge: long segmented abdomen, four gauze wings.
+  dragonfly(ctx, s) {
+    const { p, c, t } = s;
+    const bodyY = -30;
+    const hover = Math.sin(t / 260) * 1.6;
+    ctx.translate(0, hover);
+
+    // Abdomen trailing behind.
+    for (let i = 0; i < 6; i++) {
+      const x = -6 - i * 5.5;
+      fillBlob(ctx, x, bodyY + i * 0.7, 3.2 - i * 0.18, 2.8 - i * 0.2, shade(c.primary, i % 2 ? -6 : 0));
+    }
+    drawGlow(ctx, p.features.glow ?? 'glow_speckle', s, -20, bodyY + 2, 4.5);
+
+    drawWings(ctx, p.features.wing ?? 'wing_gauze', s, 0, bodyY - 3);
+
+    blob(ctx, 0, bodyY, 9, 7);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = colorToCss(c.primary);
+    ctx.fillRect(-40, -60, 80, 80);
+    paintPattern(ctx, s, [-9, bodyY - 7, 9, bodyY + 7]);
+    ctx.restore();
+
+    // Legs tucked under, the way a hovering insect holds them.
+    ctx.strokeStyle = shade(c.accent, -10);
+    ctx.lineWidth = 1.2;
+    for (const dx of [-3, 0, 3]) {
+      ctx.beginPath();
+      ctx.moveTo(dx, bodyY + 5);
+      ctx.quadraticCurveTo(dx + 2, bodyY + 11, dx - 1, bodyY + 14);
+      ctx.stroke();
+    }
+
+    const hx = 11, hy = bodyY - 2;
+    fillBlob(ctx, hx, hy, 7.5, 7, colorToCss(c.secondary, 2));
+    // Compound eyes take up most of the head.
+    for (const dir of [-1, 1]) fillBlob(ctx, hx + 2, hy + dir * 3.4, 4.4, 3.6, shade(c.eye, dir * 4));
+    fillBlob(ctx, hx + 3.5, hy - 3.6, 1.4, 1.2, 'rgba(255,255,255,0.8)');
+  },
+
+  // Duskmew: low feline, edges deliberately soft.
+  cat(ctx, s) {
+    const { p, c, t } = s;
+    const bodyY = -24;
+
+    // A faint smoke halo — the blurred-edge fur from the description.
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.filter = 'blur(3px)';
+    fillBlob(ctx, 0, bodyY, 26, 16, colorToCss(c.accent, 10));
+    ctx.restore();
+
+    drawTail(ctx, p.features.tail ?? 'tail_bush', s, -17, -18, -1);
+
+    for (const dx of [-11, -4, 7, 14]) {
+      ctx.fillStyle = shade(c.accent, -8);
+      ctx.fillRect(dx - 1.6, bodyY + 9, 3.2, 15);
+    }
+
+    blob(ctx, 0, bodyY, 21, 11, -0.05);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = colorToCss(c.primary);
+    ctx.fillRect(-40, -60, 80, 80);
+    paintCodominant(ctx, s, [-21, bodyY - 11, 21, bodyY + 11]);
+    paintPattern(ctx, s, [-19, bodyY - 9, 19, bodyY + 9]);
+    ctx.restore();
+    fillBlob(ctx, 1, bodyY + 5, 13, 5, shade(c.secondary, 6));
+
+    const hx = 16, hy = bodyY - 8;
+    fillBlob(ctx, hx, hy, 9.5, 8.5, colorToCss(c.primary, 4));
+    fillBlob(ctx, hx + 4, hy + 3, 5, 3.6, shade(c.secondary, 4));
+    drawEars(ctx, p.features.ears ?? 'ears_tuft', s, hx, hy - 6, 5.2);
+    // Crescent pupils.
+    for (const dir of [-1, 1]) {
+      const ex = hx + 1 + dir * 4.2;
+      fillBlob(ctx, ex, hy - 1, 2.4, 2.6, shade(c.eye, -4));
+      ctx.beginPath();
+      ctx.arc(ex + 0.7, hy - 1, 1.7, Math.PI * 0.55, Math.PI * 1.45);
+      outline(ctx, '#1d1720', 1.1);
+    }
+    fillBlob(ctx, hx + 5.4, hy + 2, 1.2, 0.9, shade(c.accent, -12));
+    drawGlow(ctx, p.features.glow, s, 0, bodyY, 3.4);
+  },
+
+  // Shellip: wide scalloped shell, paddle feet.
+  turtle(ctx, s) {
+    const { p, c } = s;
+    const bodyY = -15;
+    drawTail(ctx, p.features.tail ?? 'tail_paddle', s, -21, -7, -1);
+
+    // Paddle limbs.
+    for (const dir of [-1, 1]) {
+      fillBlob(ctx, dir * 19, -4, 7, 3.8, shade(c.accent, 6), dir * 0.45);
+      fillBlob(ctx, dir * 11, -3, 5.4, 3.2, shade(c.accent, 2));
+    }
+    fillBlob(ctx, 0, bodyY + 8, 21, 7, shade(c.secondary, 4));
+
+    const shellKind = p.features.shell ?? 'shell_ridge';
+    blob(ctx, 0, bodyY, 24, 15);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = colorToCss(c.primary);
+    ctx.fillRect(-40, -60, 80, 80);
+    paintCodominant(ctx, s, [-24, bodyY - 15, 24, bodyY + 15]);
+    if (shellKind === 'shell_ridge') {
+      ctx.strokeStyle = shade(c.accent, -6);
+      ctx.lineWidth = 1.5;
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * 8, bodyY - 14);
+        ctx.quadraticCurveTo(i * 9.5, bodyY, i * 8, bodyY + 13);
+        ctx.stroke();
+      }
+    } else if (shellKind === 'shell_plate') {
+      ctx.strokeStyle = shade(c.accent, -8);
+      ctx.lineWidth = 1.5;
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.ellipse(i * 11, bodyY, 7, 10, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    paintPattern(ctx, s, [-21, bodyY - 12, 21, bodyY + 10]);
+    ctx.restore();
+
+    // Scalloped rim.
+    ctx.strokeStyle = shade(c.accent, -16);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (let i = -5; i <= 5; i++) ctx.arc(i * 4.6, bodyY + 13, 2.4, Math.PI, 0);
+    ctx.stroke();
+    blob(ctx, 0, bodyY, 24, 15);
+    outline(ctx, shade(c.accent, -18), 1.5);
+
+    const hx = 21, hy = bodyY + 5;
+    fillBlob(ctx, hx, hy, 8.5, 7, colorToCss(c.secondary, -2));
+    fillBlob(ctx, hx + 5, hy + 2, 4.4, 3.2, shade(c.secondary, -6));
+    drawEars(ctx, p.features.ears ?? 'ears_fin', s, hx - 2, hy - 5, 4, 0.8);
+    drawEyes(ctx, hx + 1, hy - 1.5, 3.4, 1.6, c.eye);
+  },
+
+  // Embermole: bulk at the front, furnace lines under the fur.
+  mole(ctx, s) {
+    const { p, c, t } = s;
+    const bodyY = -20;
+    drawTail(ctx, p.features.tail ?? 'tail_stub', s, -21, -12, -1);
+
+    blob(ctx, -1, bodyY, 24, 15, -0.04);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = colorToCss(c.primary);
+    ctx.fillRect(-40, -60, 80, 80);
+    paintCodominant(ctx, s, [-25, bodyY - 15, 23, bodyY + 15]);
+
+    // Furnace lines: the identifying feature, glowing through the coat.
+    ctx.save();
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = colorToCss(c.accent, 14);
+    ctx.strokeStyle = colorToCss(c.accent, 10);
+    ctx.lineWidth = 1.8;
+    const pulse = 0.55 + Math.sin(t / 620) * 0.25;
+    ctx.globalAlpha = pulse;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 8 - 3, bodyY - 12);
+      ctx.quadraticCurveTo(i * 8 + 2, bodyY, i * 8 - 2, bodyY + 11);
+      ctx.stroke();
+    }
+    ctx.restore();
+    paintPattern(ctx, s, [-22, bodyY - 12, 20, bodyY + 11]);
+    ctx.restore();
+    fillBlob(ctx, -2, bodyY + 7, 15, 6, shade(c.secondary, 2));
+
+    // Digging claws.
+    for (const dir of [-1, 1]) {
+      const cx = 8 + dir * 5;
+      fillBlob(ctx, cx, -3, 5.6, 3.6, shade(c.secondary, -8));
+      ctx.strokeStyle = shade(c.accent, 14);
+      ctx.lineWidth = 1.4;
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + 3, -4 + i * 1.8);
+        ctx.lineTo(cx + 8, -5 + i * 2.4);
+        ctx.stroke();
+      }
+    }
+
+    const hx = 18, hy = bodyY - 1;
+    fillBlob(ctx, hx, hy, 10, 8.5, colorToCss(c.primary, 4));
+    // Blunt snout.
+    ctx.beginPath();
+    ctx.moveTo(hx + 5, hy - 2);
+    ctx.lineTo(hx + 13, hy + 1);
+    ctx.lineTo(hx + 5, hy + 5);
+    ctx.closePath();
+    ctx.fillStyle = shade(c.secondary, -4);
+    ctx.fill();
+    fillBlob(ctx, hx + 12, hy + 1, 2, 1.6, shade(c.accent, -6));
+    drawHorns(ctx, p.features.horn ?? 'horn_none', s, hx, hy - 7, 3.5);
+    drawEars(ctx, p.features.ears ?? 'ears_round', s, hx - 3, hy - 6, 4.4, 0.75);
+    // Mole eyes are small and mostly closed.
+    drawEyes(ctx, hx, hy - 1, 4, 1.2, c.eye, { blink: true });
+    drawGlow(ctx, p.features.glow, s, -12, bodyY, 4.5);
   },
 };
 

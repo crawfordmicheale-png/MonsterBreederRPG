@@ -14,6 +14,7 @@
 import { SPECIES, FEATURE_TAGS, getSpecies } from '../data/species.js';
 import { AFFINITY_IDS } from '../data/affinities.js';
 import { TENDENCY_IDS, TENDENCIES } from '../data/temperaments.js';
+import { HAZARD_IDS, HAZARDS, RESIST_ALLELES, expressResistance } from '../data/environment.js';
 
 export const STAT_KEYS = ['vitality', 'power', 'guard', 'focus', 'speed', 'resolve'];
 
@@ -50,10 +51,14 @@ export const COLOR_LOCI = ['colorPrimary', 'colorSecondary', 'colorAccent', 'col
 
 /** 'colorPrimary' -> 'primary', matching the palette field names. */
 export const colorKey = (locus) => locus.slice(5, 6).toLowerCase() + locus.slice(6);
-export const FEATURE_SLOTS = ['ears', 'tail', 'crest', 'shell', 'glow', 'wing'];
+export const FEATURE_SLOTS = ['ears', 'tail', 'crest', 'shell', 'glow', 'wing', 'horn'];
 
 const featureLocus = (slot) => `feat_${slot}`;
 const aptitudeLocus = (stat) => `apt_${stat}`;
+
+/** Environmental resistance loci, one per hazard. */
+export const RESIST_LOCI = HAZARD_IDS.map((h) => HAZARDS[h].resistLocus);
+export const resistLocusFor = (hazardId) => HAZARDS[hazardId].resistLocus;
 
 export const APTITUDE_LOCI = STAT_KEYS.map(aptitudeLocus);
 export const FEATURE_LOCI = FEATURE_SLOTS.map(featureLocus);
@@ -66,6 +71,7 @@ export const ALL_LOCI = [
   'affinityPrimary',
   'affinitySecondary',
   ...APTITUDE_LOCI,
+  ...RESIST_LOCI,
   'tempA',
   'tempB',
 ];
@@ -156,6 +162,16 @@ export function createWildGenome(speciesId, rng, opts = {}) {
     ];
   }
 
+  // Environmental resistance. Most wild stock carries nothing; species that
+  // live in an extreme place carry the allele that lets them.
+  for (const hazardId of HAZARD_IDS) {
+    const adaptation = species.resistances?.[hazardId];
+    loci[HAZARDS[hazardId].resistLocus] = [
+      resistAllele(drawResistance(adaptation, rng)),
+      resistAllele(drawResistance(adaptation, rng)),
+    ];
+  }
+
   // Temperament — biased toward the species' typical dispositions.
   const bias = species.temperamentBias;
   const tendencyPool = [...bias, ...bias, ...TENDENCY_IDS];
@@ -178,6 +194,21 @@ export function createWildGenome(speciesId, rng, opts = {}) {
 
 function patternAllele(key) {
   return allele(key, PATTERN_ALLELES[key].dom);
+}
+
+function resistAllele(key) {
+  return allele(key, RESIST_ALLELES[key].dom);
+}
+
+/**
+ * `bias` is the species' typical resistance: 'full', 'partial' or undefined.
+ * Even a well-adapted species does not breed true every time, which is what
+ * makes the allele worth hunting for rather than assumed.
+ */
+function drawResistance(bias, rng) {
+  if (bias === 'full') return rng.weighted(['full', 'partial', 'none'], [6, 3, 1]);
+  if (bias === 'partial') return rng.weighted(['partial', 'none', 'full'], [6, 3, 1]);
+  return rng.weighted(['none', 'partial'], [17, 1]);
 }
 
 function allVariantsFor(slot) {
@@ -309,10 +340,31 @@ export function expressGenome(genome) {
     aptitudes[stat] = clamp((pair[0].v + pair[1].v) / 2, 0.05, 1);
   }
 
+  // --- environmental resistance ---
+  const resistances = {};
+  for (const hazardId of HAZARD_IDS) {
+    resistances[hazardId] = expressResistance(L[HAZARDS[hazardId].resistLocus]);
+  }
+
   // --- temperament ---
   const tA = resolveDominance(L.tempA);
   const tB = resolveDominance(L.tempB);
   const temperament = [tA.winner.v, tB.winner.v];
+  for (const hazardId of HAZARD_IDS) {
+    const pair = L[HAZARDS[hazardId].resistLocus];
+    const expressed = resistances[hazardId];
+    for (const a of pair) {
+      const value = RESIST_ALLELES[a.v]?.v ?? 0;
+      if (value > expressed + 0.001) {
+        hidden.push({
+          locus: HAZARDS[hazardId].resistLocus,
+          label: `${RESIST_ALLELES[a.v].name} ${HAZARDS[hazardId].traitName}`,
+          kind: 'resistance',
+        });
+      }
+    }
+  }
+
   for (const [pairRes, locus] of [[tA, 'tempA'], [tB, 'tempB']]) {
     const other = pairRes.mode === 'dominant' ? pairRes.hidden : pairRes.other;
     if (other && other.v !== pairRes.winner.v) {
@@ -343,6 +395,7 @@ export function expressGenome(genome) {
     affinities: [affPrimary, affSecondary].filter(Boolean),
     dormantAffinity,
     aptitudes,
+    resistances,
     temperament,
     bodyTags: [...bodyTags],
     hidden,
@@ -393,6 +446,60 @@ export function countMutations(genome) {
     for (const a of pair) if (a.tag === 'mutation') n++;
   }
   return n;
+}
+
+/**
+ * Fill in any locus a genome is missing.
+ *
+ * Saves written before a locus existed must keep working — a player should
+ * never lose a bloodline because the game grew a new gene. Missing loci get a
+ * neutral default rather than a random one, so an old Kinbeast does not
+ * silently acquire traits it was never bred for.
+ */
+export function normaliseGenome(genome) {
+  if (!genome?.loci) return genome;
+  const species = SPECIES[genome.species];
+  for (const locus of ALL_LOCI) {
+    if (Array.isArray(genome.loci[locus]) && genome.loci[locus].length === 2) continue;
+    genome.loci[locus] = defaultPairFor(locus, species);
+  }
+  if (!Array.isArray(genome.legacyMoves)) genome.legacyMoves = [];
+  if (!Array.isArray(genome.echoes)) genome.echoes = [];
+  return genome;
+}
+
+function defaultPairFor(locus, species) {
+  if (RESIST_LOCI.includes(locus)) {
+    // Backfill from the species' natural adaptation, so an Embermole saved
+    // before the locus existed is still an Embermole.
+    const hazardId = HAZARD_IDS.find((h) => HAZARDS[h].resistLocus === locus);
+    const bias = species?.resistances?.[hazardId] ?? 'none';
+    const key = bias === 'full' ? 'full' : bias === 'partial' ? 'partial' : 'none';
+    return [allele(key, RESIST_ALLELES[key].dom), allele(key, RESIST_ALLELES[key].dom)];
+  }
+  if (locus === 'build') return [allele('medium', 1), allele('medium', 1)];
+  if (locus === 'pattern') return [allele('none', 0), allele('none', 0)];
+  if (COLOR_LOCI.includes(locus)) {
+    const base = species?.palettes?.[0]?.[colorKey(locus)] ?? { h: 40, s: 30, l: 55 };
+    return [allele({ ...base }, 1), allele({ ...base }, 1)];
+  }
+  if (locus.startsWith('apt_')) return [allele(0.5, 1), allele(0.5, 1)];
+  if (locus === 'affinityPrimary') {
+    const a = species?.affinities?.[0] ?? 'grove';
+    return [allele(a, 2), allele(a, 2)];
+  }
+  if (locus === 'affinitySecondary') {
+    const a = species?.affinities?.[1] ?? null;
+    return [allele(a, a ? 2 : 0), allele(a, 0)];
+  }
+  if (locus.startsWith('feat_')) {
+    const slot = locus.slice(5);
+    const supported = species?.featureSlots?.[slot];
+    const key = supported?.[0] ?? allVariantsFor(slot)[0];
+    return [allele(key, 1), allele(key, 1)];
+  }
+  const tendency = species?.temperamentBias?.[0] ?? TENDENCY_IDS[0];
+  return [allele(tendency, 1), allele(tendency, 1)];
 }
 
 export function cloneGenome(genome) {
