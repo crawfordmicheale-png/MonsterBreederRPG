@@ -158,10 +158,15 @@ export class Battle {
 
   onEnterField(c) {
     const passive = c.passive?.id;
-    if (passive === 'softstep') {
+    if (passive === 'softstep' || passive === 'living_lineage') {
       const allies = this.activeOf(c.side).filter((a) => a.id !== c.id);
       const weakest = allies.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
-      if (weakest) this.heal(weakest, Math.round(weakest.maxHp * 0.08), `${c.name}'s Softstep`);
+      if (weakest) {
+        const label = passive === 'living_lineage' ? `${c.name}'s Living Lineage` : `${c.name}'s Softstep`;
+        this.heal(weakest, Math.round(weakest.maxHp * 0.08), label);
+        if (passive === 'living_lineage') this.cleanse(weakest, 1);
+      }
+      this.log('passive', { name: c.name, passive: c.passive?.name ?? passive });
     }
     if (passive === 'tailwindcry') {
       for (const a of this.activeOf(c.side)) this.applyStatus(a, 'haste', 2, `${c.name}'s Tailwind Cry`);
@@ -318,6 +323,16 @@ export class Battle {
     if (eff.hasteTeam) this.applyStatus(target, 'haste', eff.hasteTeam, move.name);
     if (eff.focusTeam) this.applyStatus(target, 'focusUp', eff.focusTeam, move.name);
 
+    // Gentle work settles a rampaging Kinbeast faster than raw force alone.
+    if (
+      this.config.objective === 'calm' &&
+      actor.side === 'player' &&
+      (move.kind === 'status' || move.kind === 'heal')
+    ) {
+      this.calmProgress = Math.min(100, this.calmProgress + 12);
+      this.checkEnd();
+    }
+
     if (move.power > 0) {
       const hit = this.rollAccuracy(actor, target, move);
       if (!hit) {
@@ -370,8 +385,20 @@ export class Battle {
     }
 
     // Temperament reactions that colour the numbers.
-    if (actor.temperament.includes('bold') && target.hp / target.maxHp > 0.7) atk *= 1.1;
-    if (actor.temperament.includes('territorial') && actor.index === 0) atk *= 1.08;
+    if (actor.temperament.includes('bold') && target.hp / target.maxHp > 0.7) {
+      atk *= 1.1;
+      if (!actor.flags.boldAnnounced) {
+        actor.flags.boldAnnounced = true;
+        this.log('reaction', { name: actor.name, reaction: REACTIONS.bold.name, detail: 'presses the fresh fight' });
+      }
+    }
+    if (actor.temperament.includes('territorial') && actor.index === 0) {
+      atk *= 1.08;
+      if (!actor.flags.territorialAnnounced) {
+        actor.flags.territorialAnnounced = true;
+        this.log('reaction', { name: actor.name, reaction: REACTIONS.territorial.name, detail: 'holds the front' });
+      }
+    }
     if (actor.temperament.includes('social') && this.activeOf(actor.side).length === 3) atk *= 1.05;
 
     const mult = move.affinity ? effectiveness(move.affinity, target.affinities) : 1;
@@ -423,6 +450,18 @@ export class Battle {
 
     if (this.config.objective === 'calm' && target.side === 'foe') {
       this.calmProgress = Math.min(100, this.calmProgress + (amount / target.maxHp) * 120);
+      // Calming is not killing — leave them standing when the storm breaks.
+      if (target.hp === 0) {
+        target.hp = 1;
+        this.calmProgress = 100;
+        this.log('reaction', {
+          name: target.name,
+          reaction: 'Settling',
+          detail: 'the rage finally gives way',
+        });
+        this.checkEnd();
+        return;
+      }
     }
 
     if (target.hp === 0) this.faint(target);

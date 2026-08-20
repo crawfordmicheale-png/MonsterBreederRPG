@@ -32,12 +32,19 @@ export function stabilityTag(beast) {
   return tag(`Stability ${s}`, cls);
 }
 
+/** Display name for a beast's species line, respecting story companions. */
+export function speciesLabel(beast) {
+  if (beast.isEchoryx) return 'Echoryx';
+  return getSpecies(beast.speciesId).name;
+}
+
 /** A tappable roster row. */
 export function beastRow(beast, opts = {}) {
   const species = getSpecies(beast.speciesId);
   const stats = computeStats(beast);
   const hp = Math.max(0, stats.maxHp - (beast.hpLost ?? 0));
   const per = personality(beast);
+  const label = speciesLabel(beast);
 
   return el(
     'button',
@@ -55,13 +62,13 @@ export function beastRow(beast, opts = {}) {
         beast.isEchoryx ? tag('Story', 'warn') : null,
         beast.generation > 1 ? tag(`G${beast.generation}`) : null
       ),
-      div({ class: 'sp' }, `${species.name} · Lv ${beast.level} · ${STAGE_INFO[beast.stage].name} · ${per.name}`),
+      div({ class: 'sp' }, `${label} · Lv ${beast.level} · ${STAGE_INFO[beast.stage].name} · ${per.name}`),
       opts.meters === false
         ? null
         : div(
             { style: { marginTop: '5px', display: 'flex', flexDirection: 'column', gap: '3px' } },
-            meter(hp, stats.maxHp, `hp${hp / stats.maxHp < 0.35 ? ' low' : ''}`),
-            meter(beast.bond, 100, 'bond')
+            labelledMeter('Health', hp, stats.maxHp, `hp${hp / stats.maxHp < 0.35 ? ' low' : ''}`),
+            labelledMeter('Bond', beast.bond, 100, 'bond')
           ),
       opts.detail ?? null
     ),

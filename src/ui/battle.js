@@ -29,6 +29,7 @@ export class BattleView {
     this.selectedMove = null;
     this.root = div({ class: 'battlefield' });
     this.busy = false;
+    this.reactionBanner = null;
   }
 
   /**
@@ -93,6 +94,15 @@ export class BattleView {
     for (const ev of this.battle.drain()) {
       const line = describe(ev);
       if (line) this.logLines.push(line);
+      if (ev.type === 'reaction' || ev.type === 'passive') {
+        this.reactionBanner = {
+          text: ev.type === 'reaction'
+            ? `${ev.name} — ${ev.reaction}`
+            : `${ev.name}'s ${ev.passive}`,
+          detail: ev.detail ?? '',
+          until: Date.now() + 1600,
+        };
+      }
     }
     this.logLines = this.logLines.slice(-40);
   }
@@ -113,6 +123,20 @@ export class BattleView {
 
     if (b.config.objective !== 'defeat') {
       this.root.appendChild(div({ class: 'callout' }, objectiveText(b)));
+    }
+
+    if (this.reactionBanner && Date.now() < this.reactionBanner.until) {
+      this.root.appendChild(
+        div(
+          { class: 'reaction-banner' },
+          div({ class: 'reaction-banner-title' }, this.reactionBanner.text),
+          this.reactionBanner.detail
+            ? div({ class: 'tiny' }, this.reactionBanner.detail)
+            : null
+        )
+      );
+    } else {
+      this.reactionBanner = null;
     }
 
     // Initiative timeline.
@@ -373,9 +397,9 @@ function describe(ev) {
     case 'resist':
       return `${b(ev.name)} resists ${escapeHtml(ev.status)}.`;
     case 'reaction':
-      return `<span class="good">${escapeHtml(ev.name)} — ${escapeHtml(ev.reaction)}:</span> ${escapeHtml(ev.detail)}.`;
+      return `<span class="reaction-log"><span class="good">${escapeHtml(ev.name)} — ${escapeHtml(ev.reaction)}</span>: ${escapeHtml(ev.detail)}.</span>`;
     case 'passive':
-      return `<span class="good">${escapeHtml(ev.name)}'s ${escapeHtml(ev.passive)} triggers.</span>`;
+      return `<span class="reaction-log"><span class="good">${escapeHtml(ev.name)}'s ${escapeHtml(ev.passive)} triggers.</span></span>`;
     case 'switch':
       return `${b(ev.out)} steps back; ${b(ev.in)} comes forward.`;
     case 'guard':

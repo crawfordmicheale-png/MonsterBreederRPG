@@ -42,6 +42,10 @@ export const MOVES = {
   warmlantern:{ id: 'warmlantern',name: 'Warm Lantern',  affinity: 'light', power: 0,  acc: 1,    cost: 14, kind: 'heal',     target: 'allAllies', requires: [], learnable: true, effect: { heal: 20 }, desc: 'A steady glow that eases the whole team.' },
   dawnflare:  { id: 'dawnflare',  name: 'Dawnflare',     affinity: 'light', power: 44, acc: 0.9,  cost: 12, kind: 'focus',    target: 'enemy', requires: [], learnable: true,  effect: { blind: 2 }, desc: 'A rising flare that leaves the target dazzled.' },
 
+  // ---- aether ----
+  echo_hum:   { id: 'echo_hum',   name: 'Echo Hum',      affinity: 'aether', power: 0,  acc: 1,    cost: 8,  kind: 'heal',     target: 'ally',  requires: [], learnable: true,  effect: { heal: 28, cleanse: 1 }, desc: 'A soft tone that settles a wound and one lingering fear.' },
+  memoryveil: { id: 'memoryveil', name: 'Memory Veil',   affinity: 'aether', power: 0,  acc: 1,    cost: 10, kind: 'status',   target: 'allEnemies', requires: [], learnable: true, effect: { blind: 2 }, desc: 'Borrowed recollection clouds the opposing line.' },
+
   // ---- new in the Emberbreak chapter ----
   goringcharge:{ id: 'goringcharge',name: 'Goring Charge',  affinity: 'grove', power: 50, acc: 0.88, cost: 12, kind: 'physical', target: 'enemy', requires: ['horn'], learnable: true, desc: 'A committed run behind lowered tusks. Requires horns or tusks.' },
   mirebind:   { id: 'mirebind',   name: 'Mirebind',      affinity: 'tide',  power: 22, acc: 0.92, cost: 9,  kind: 'focus',    target: 'allEnemies', requires: [], learnable: true, effect: { slow: 2 }, desc: 'Thick water underfoot. Slows the whole opposing line.' },
@@ -73,6 +77,7 @@ export const MOVES = {
   bond_shellip:   { id: 'bond_shellip',   name: 'Safe Harbour',   affinity: 'tide',  power: 0,  acc: 1, cost: 0, kind: 'heal',  target: 'allAllies', requires: [], learnable: false, bond: true, effect: { heal: 32, guardBuffTeam: 3 }, desc: 'Bond Skill — everyone gets behind the shell.' },
   bond_embermole: { id: 'bond_embermole', name: 'Furnace Breach', affinity: 'flame', power: 66, acc: 0.92, cost: 0, kind: 'physical', target: 'enemy', requires: [], learnable: false, bond: true, effect: { burn: 0.6 }, desc: 'Bond Skill — opens the ground and lets the heat up through it.' },
   bond_glowgrub:  { id: 'bond_glowgrub',  name: 'Lantern Hour',   affinity: 'light', power: 0,  acc: 1, cost: 0, kind: 'heal',  target: 'allAllies', requires: [], learnable: false, bond: true, effect: { heal: 34, focusTeam: 4 }, desc: 'Bond Skill — a long warm light that steadies everyone.' },
+  bond_echoryx:   { id: 'bond_echoryx',   name: 'Shared Thread',  affinity: 'aether', power: 0,  acc: 1, cost: 0, kind: 'heal',  target: 'allAllies', requires: [], learnable: false, bond: true, effect: { heal: 36, cleanse: 1, focusTeam: 3 }, desc: 'Bond Skill — every Concord on the field pulls a little tighter.' },
 };
 
 export const MOVE_IDS = Object.keys(MOVES);

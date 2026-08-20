@@ -83,6 +83,45 @@ test('the timeline preview matches who actually acts next', () => {
   assert.equal(preview[0].id, actual.id, 'preview disagreed with the engine');
 });
 
+test('a calm objective can be won by settling the foe without wiping them', () => {
+  const rng = new RNG(19);
+  const player = [
+    makeWildKinbeast('mossbun', rng, 18),
+    makeWildKinbeast('glowgrub', rng, 16),
+  ];
+  const foe = [makeWildKinbeast('embermole', rng, 8)];
+  const battle = autoBattle(player, foe, rng, { objective: 'calm' });
+  assert.equal(battle.outcome, 'win');
+  assert.ok(battle.calmProgress >= 100 || battle.standing('foe').length === 0);
+});
+
+test('Echoryx has its own species and silhouette', () => {
+  const game = new Game();
+  game.grantEchoryx();
+  assert.equal(game.echoryx.speciesId, 'echoryx');
+  assert.equal(game.echoryx.phenotype.species.silhouette, 'echo');
+  assert.ok(game.echoryx.isEchoryx);
+  assert.equal(game.recoveryLevel(), 0);
+});
+
+test('hatching queues a ceremony the UI can drain', () => {
+  const game = new Game();
+  game.flags.breeding_unlocked = true;
+  game.flags.cross_species_unlocked = true;
+  game.facilities.nursery = 1;
+  const mum = makeWildKinbeast('mossbun', game.rng, 12);
+  const dad = makeWildKinbeast('mossbun', game.rng, 12);
+  mum.stage = 'adult';
+  dad.stage = 'adult';
+  game.addBeast(mum);
+  game.addBeast(dad);
+  const res = game.breed(mum.id, dad.id);
+  assert.ok(res.ok);
+  while (game.eggs.length) game.completeActivity('expedition', 20);
+  const ceremonies = game.drainCeremonies();
+  assert.ok(ceremonies.some((c) => c.kind === 'hatch'));
+});
+
 test('bonding responds to temperament rather than a capture roll', () => {
   const rng = new RNG(99);
   const beast = makeWildKinbeast('cinderkit', rng, 6);

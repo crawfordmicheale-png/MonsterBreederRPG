@@ -8,6 +8,17 @@ import { Game, APTITUDES } from '../core/state.js';
 import { RESOURCES } from '../data/regions.js';
 import { trialById } from '../data/trials.js';
 import { STAGE_INFO } from '../core/kinbeast.js';
+import { eggPortrait } from './portrait.js';
+import { presentCeremonies } from './ceremony.js';
+import {
+  startSanctuaryBed,
+  setRecoveryLevel,
+  hushBed,
+  restoreBed,
+  stopSanctuaryBed,
+  toggleMute,
+  isMuted,
+} from './audio.js';
 
 const TABS = [
   { id: 'sanctuary', label: 'Sanctuary', glyph: '⌂', render: sanctuaryScreen },
@@ -26,6 +37,7 @@ export class App {
     this.sceneOpen = false;
     this.shownScene = null;
     this.breedState = { form: null, trait: null };
+    this.ceremonyOpen = false;
   }
 
   // -- boot ----------------------------------------------------------------
@@ -35,6 +47,8 @@ export class App {
     if (save) {
       this.game = save;
       this.mode = 'play';
+      this.applyRecoveryTheme();
+      startSanctuaryBed(this.game.recoveryLevel());
     }
     this.render();
   }
@@ -45,6 +59,8 @@ export class App {
     this.game.note('You came back to Briarhold.');
     this.mode = 'play';
     this.tab = 'sanctuary';
+    this.applyRecoveryTheme();
+    startSanctuaryBed(0);
     this.afterChange();
   }
 
@@ -52,7 +68,15 @@ export class App {
     Game.clearStorage();
     this.game = null;
     this.mode = 'title';
+    stopSanctuaryBed();
+    document.documentElement.dataset.recovery = '0';
     this.render();
+  }
+
+  applyRecoveryTheme() {
+    const level = this.game?.recoveryLevel?.() ?? 0;
+    document.documentElement.dataset.recovery = String(level);
+    setRecoveryLevel(level);
   }
 
   /** Called after any state mutation: persist, re-check story, re-render. */
@@ -60,8 +84,20 @@ export class App {
     if (this.game) {
       this.game.checkStory();
       this.game.save();
+      this.applyRecoveryTheme();
     }
     this.render();
+    this.maybePresentCeremonies();
+  }
+
+  maybePresentCeremonies() {
+    if (this.ceremonyOpen || this.sceneOpen || this.mode !== 'play') return;
+    if (!this.game?.pendingCeremonies?.length) return;
+    this.ceremonyOpen = true;
+    presentCeremonies(this, () => {
+      this.ceremonyOpen = false;
+      this.render();
+    });
   }
 
   // -- rendering -----------------------------------------------------------
@@ -69,9 +105,13 @@ export class App {
   render() {
     clear(this.host);
     if (this.mode === 'title' || !this.game) {
+      this.host.className = 'app recovery-0';
       this.host.appendChild(this.titleScreen());
       return;
     }
+
+    const recovery = this.game.recoveryLevel?.() ?? 0;
+    this.host.className = `app recovery-${recovery}`;
 
     this.host.appendChild(this.topbar());
     const main = el('main', {});
@@ -98,12 +138,23 @@ export class App {
     const resources = Object.entries(game.resources).filter(([, v]) => v > 0);
     return div(
       { class: 'topbar' },
-      div({ class: 'sub' }, chapter ? `Chapter ${chapter.number} · ${chapter.title}` : 'Postgame · Briarhold stands'),
+      div(
+        { class: 'spread' },
+        div({ class: 'sub' }, chapter ? `Chapter ${chapter.number} · ${chapter.title}` : 'Postgame · Briarhold stands'),
+        button(isMuted() ? 'Sound off' : 'Sound on', {
+          class: 'btn ghost small sound-toggle',
+          onclick: () => {
+            toggleMute();
+            this.render();
+          },
+        })
+      ),
       div(
         { class: 'topbar-line' },
         el('h1', {}, 'Briarhold Sanctuary'),
         div(
           { class: 'resource-strip' },
+          tag(game.recoveryLabel?.() ?? 'Ash', 'warn'),
           resources.length
             ? resources.map(([k, v]) =>
                 span({}, `${RESOURCES[k]?.short ?? RESOURCES[k]?.name ?? k} `, el('b', {}, v))
@@ -147,6 +198,14 @@ export class App {
     const nameInput = el('input', { type: 'text', placeholder: 'Your name', maxlength: '18', value: 'Wren Briarhold' });
     const cards = div({ class: 'stack' });
 
+    // A sealed egg — proof this is a monster game before the first tap.
+    const teaseEgg = {
+      progress: 0.72,
+      needed: 1,
+      generation: 1,
+      parentNames: ['sealed chamber', 'Briarhold'],
+    };
+
     const paint = () => {
       clear(cards);
       for (const a of Object.values(APTITUDES)) {
@@ -171,8 +230,11 @@ export class App {
 
     return div(
       { class: 'title-screen' },
-      div({ class: 'eyebrow' }, 'A monster-breeding RPG'),
-      el('h1', {}, "The Broodkeeper's\nOath"),
+      div({ class: 'title-hero' },
+        div({ class: 'title-egg' }, eggPortrait(teaseEgg, 96)),
+        div({ class: 'eyebrow' }, 'A monster-breeding RPG'),
+        el('h1', {}, "The Broodkeeper's\nOath")
+      ),
       p(
         { class: 'oath' },
         'You inherit a ruined sanctuary, one egg nobody was supposed to find, and a family name that everyone in Alderreach remembers for the wrong reason.'
@@ -184,9 +246,12 @@ export class App {
       cards,
       button('Return to Briarhold', {
         class: 'btn primary full',
-        onclick: () => this.startNewGame({ name: nameInput.value.trim() || 'Briarhold', aptitude }),
+        onclick: () => {
+          startSanctuaryBed(0);
+          this.startNewGame({ name: nameInput.value.trim() || 'Briarhold', aptitude });
+        },
       }),
-      p({ class: 'tiny' }, 'Vertical slice — prologue and Chapter One. Progress saves to this device.')
+      p({ class: 'tiny' }, 'Prologue through Chapter Two. Progress saves to this device.')
     );
   }
 
@@ -194,7 +259,7 @@ export class App {
 
   maybeShowScene() {
     const beat = this.game.beat;
-    if (!beat || beat.kind !== 'scene' || this.sceneOpen) return;
+    if (!beat || beat.kind !== 'scene' || this.sceneOpen || this.ceremonyOpen) return;
     const key = `${this.game.chapterIndex}:${this.game.beatIndex}`;
     if (this.shownScene === key) return;
     this.shownScene = key;
@@ -207,6 +272,7 @@ export class App {
   /** Full-screen scene reader. Lines reveal one tap at a time. */
   showScene(title, lines, onDone) {
     this.sceneOpen = true;
+    hushBed(0.5);
     let shown = 1;
     const inner = div({ class: 'scene-inner' });
     const overlay = div({ class: 'scene-overlay' }, inner);
@@ -235,6 +301,7 @@ export class App {
             } else {
               overlay.remove();
               this.sceneOpen = false;
+              restoreBed();
               onDone?.();
             }
           },
@@ -272,11 +339,13 @@ export class App {
   // -- battles -------------------------------------------------------------
 
   startBattle(spec) {
+    hushBed(0.4);
     this.battleView = new BattleView(this, {
       ...spec,
       onEnd: (battle) => {
         this.battleView = null;
         this.mode = 'play';
+        restoreBed();
         spec.onEnd?.(battle);
       },
     });

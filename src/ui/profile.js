@@ -10,6 +10,7 @@ import {
   vigorTag,
   stabilityTag,
   xpBar,
+  speciesLabel,
 } from './components.js';
 import { getSpecies } from '../data/species.js';
 import { MOVES } from '../data/moves.js';
@@ -47,7 +48,7 @@ function renderProfile(app, beast, close) {
         el('h2', { style: { marginBottom: '2px' } }, beast.name),
         p(
           { class: 'tiny', style: { marginBottom: '6px' } },
-          `${species.name} · Generation ${beast.generation} · ${STAGE_INFO[beast.stage].name} · ${titleCase(beast.origin)}`
+          `${speciesLabel(beast)} · Generation ${beast.generation} · ${STAGE_INFO[beast.stage].name} · ${titleCase(beast.origin)}`
         ),
         div({ class: 'chip-row' }, affinityTags(beast), tag(per.name, 'warn'), vigorTag(beast), stabilityTag(beast))
       )

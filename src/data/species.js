@@ -551,10 +551,61 @@ export const SPECIES = {
     breedingValue:
       'Heatproof traits, digging exploration abilities, Power aptitude, thermal markings and Flame resistance.',
   },
+
+  // Story companion — not found in the wild. Own silhouette; Mossbun-adjacent
+  // genetics so early breeding tutorials stay coherent when it eventually awakens.
+  echoryx: {
+    id: 'echoryx',
+    name: 'Echoryx',
+    rarity: 'very_rare',
+    storyOnly: true,
+    affinities: ['aether'],
+    families: ['feral', 'wisp'],
+    role: 'Adaptive Support',
+    silhouette: 'echo',
+    blurb:
+      'A small four-legged Kinbeast whose ears, markings and elemental glow shift toward whatever it bonds with. Unimpressive until you watch it long enough.',
+    firstFound: 'Hidden egg beneath Briarhold',
+    habitat: 'meadow',
+    fertility: 0.4,
+    baseStats: { vitality: 58, power: 42, guard: 48, focus: 72, speed: 60, resolve: 70 },
+    passive: {
+      id: 'living_lineage',
+      name: 'Living Lineage',
+      desc: 'When Echoryx enters battle, the weakest ally recovers a little health and shakes off one minor condition.',
+    },
+    bondSkill: 'bond_echoryx',
+    featureSlots: {
+      ears: ['ears_long', 'ears_leaf', 'ears_round'],
+      tail: ['tail_stub', 'tail_bush'],
+      crest: ['crest_none', 'crest_moss'],
+      glow: ['glow_speckle', 'glow_lantern', 'glow_none'],
+    },
+    bodyTags: ['quadruped', 'fur', 'ear', 'tail', 'glow'],
+    learnset: [
+      { level: 1, move: 'echo_hum' },
+      { level: 1, move: 'bloomgift' },
+      { level: 6, move: 'memoryveil' },
+      { level: 12, move: 'glimmer' },
+    ],
+    temperamentBias: ['curious', 'loyal', 'gentle', 'nervous'],
+    palettes: [
+      { primary: hsl(268, 22, 62), secondary: hsl(190, 30, 70), accent: hsl(300, 62, 70), eye: hsl(300, 50, 72) },
+      { primary: hsl(250, 18, 58), secondary: hsl(200, 24, 74), accent: hsl(45, 70, 74), eye: hsl(280, 45, 68) },
+      { primary: hsl(280, 16, 55), secondary: hsl(170, 22, 68), accent: hsl(320, 55, 66), eye: hsl(200, 40, 70) },
+    ],
+    breedingValue:
+      'Adaptive glow, Echo sensitivity, Aether affinity, and — after awakening — universal family compatibility.',
+  },
 };
 
 
 export const SPECIES_IDS = Object.keys(SPECIES);
+
+/** Species the player is expected to meet in the wild. */
+export function wildSpeciesIds() {
+  return SPECIES_IDS.filter((id) => !SPECIES[id].storyOnly);
+}
 
 export function getSpecies(id) {
   const s = SPECIES[id];

@@ -30,7 +30,7 @@ import { ECHOES, FRAGMENTS, reconstructable } from '../data/echoes.js';
 import { tolerance, bestTolerance, partyClears, teamClears, HAZARDS } from '../data/environment.js';
 
 export const SAVE_KEY = 'broodkeepers-oath-save-v1';
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 export const APTITUDES = {
   handler: { id: 'handler', name: 'Handler', desc: 'Wild Kinbeasts give ground faster, and you read temperaments early.' },
@@ -74,6 +74,8 @@ export class Game {
     this.journal = [];
     this.stats = { battlesWon: 0, battlesLost: 0, eggsLaid: 0, eggsHatched: 0, bondsFormed: 0, expeditions: 0 };
     this.pending = null; // an in-progress encounter or battle, held by the UI
+    this.pendingCeremonies = []; // hatch / bond / habitat moments for the UI to present
+    this.seenMoments = [];
     this.team = [];
     return this;
   }
@@ -210,9 +212,7 @@ export class Game {
 
   grantEchoryx() {
     if (this.echoryxId) return this.echoryx;
-    // Echoryx uses the Mossbun body template in the slice — its adaptive form
-    // is a late-game system, but its markings already drift toward its bonds.
-    const genome = createWildGenome('mossbun', this.rng);
+    const genome = createWildGenome('echoryx', this.rng);
     genome.loci.colorPrimary = [
       { v: { h: 268, s: 22, l: 62 }, dom: 2 },
       { v: { h: 190, s: 30, l: 70 }, dom: 1 },
@@ -222,6 +222,10 @@ export class Game {
       { v: { h: 45, s: 70, l: 74 }, dom: 1 },
     ];
     genome.loci.pattern = [{ v: 'luminous', dom: 3 }, { v: 'spots', dom: 1 }];
+    genome.loci.feat_glow = [
+      { v: 'glow_speckle', dom: 2 },
+      { v: 'glow_lantern', dom: 1 },
+    ];
     const beast = makeKinbeast({
       genome,
       name: 'Echoryx',
@@ -239,6 +243,40 @@ export class Game {
     this.addBeast(beast);
     this.note('Echoryx hatched.');
     return beast;
+  }
+
+  /** Push a UI ceremony. The App drains these after each state change. */
+  queueCeremony(ceremony) {
+    if (!this.pendingCeremonies) this.pendingCeremonies = [];
+    this.pendingCeremonies.push(ceremony);
+  }
+
+  drainCeremonies() {
+    const list = this.pendingCeremonies ?? [];
+    this.pendingCeremonies = [];
+    return list;
+  }
+
+  /**
+   * How far Briarhold has come back from ash.
+   * 0 ash · 1 clearing · 2 settling · 3 living
+   */
+  recoveryLevel() {
+    let score = 0;
+    if (this.flags.nursery_cleared) score += 1;
+    if (this.facilities.nursery) score += 1;
+    if ((this.habitatsUnlocked?.length ?? 0) >= 2) score += 1;
+    if (this.seals.includes('meadow')) score += 1;
+    if (this.seals.includes('ember')) score += 1;
+    if ((this.stats.eggsHatched ?? 0) >= 1) score += 1;
+    if (score <= 1) return 0;
+    if (score <= 3) return 1;
+    if (score <= 4) return 2;
+    return 3;
+  }
+
+  recoveryLabel() {
+    return ['Ash', 'Clearing', 'Settling', 'Living'][this.recoveryLevel()] ?? 'Ash';
   }
 
   giveFragment(beastId, fragmentId) {
@@ -315,10 +353,59 @@ export class Game {
       const neighbours = this.occupantsOf(beast.habitat).filter((o) => o.id !== beast.id);
       const other = neighbours[Math.floor(this.rng.next() * neighbours.length)];
       if (other) {
+        const before = beast.relationships[other.id] ?? 0;
         const compatible = beast.phenotype.temperament.some((t) => other.phenotype.temperament.includes(t));
         const delta = compatible ? 2 : this.rng.chance(0.75) ? 1 : -1;
-        beast.relationships[other.id] = Math.max(-40, Math.min(100, (beast.relationships[other.id] ?? 0) + delta));
-        other.relationships[beast.id] = beast.relationships[other.id];
+        const after = Math.max(-40, Math.min(100, before + delta));
+        beast.relationships[other.id] = after;
+        other.relationships[beast.id] = after;
+        this.maybeQueueHabitatMoment(beast, other, before, after);
+      }
+    }
+  }
+
+  maybeQueueHabitatMoment(a, b, before, after) {
+    if (!this.seenMoments) this.seenMoments = [];
+    const where = this.habitat(a.habitat)?.name?.toLowerCase() ?? 'habitat';
+    const ordered = [a.id, b.id].sort().join(':');
+    if (before < 25 && after >= 25) {
+      const key = `friend:${ordered}`;
+      if (!this.seenMoments.includes(key)) {
+        this.seenMoments.push(key);
+        this.queueCeremony({
+          kind: 'habitat',
+          title: 'A quiet corner',
+          lines: [
+            { who: 'narration', text: `${a.name} and ${b.name} have taken to sleeping in the same corner of the ${where}.` },
+            { who: 'narration', text: 'Neither of them announces it. The straw just ends up shared.' },
+          ],
+        });
+      }
+    } else if (before > -12 && after <= -12) {
+      const key = `rival:${ordered}`;
+      if (!this.seenMoments.includes(key)) {
+        this.seenMoments.push(key);
+        this.queueCeremony({
+          kind: 'habitat',
+          title: 'Uneasy ground',
+          lines: [
+            { who: 'narration', text: `${a.name} and ${b.name} will not settle in the same part of the ${where}.` },
+            { who: 'narration', text: 'The keepers learn which half of the habitat belongs to whom.' },
+          ],
+        });
+      }
+    } else if (before < 50 && after >= 50) {
+      const key = `bond:${ordered}`;
+      if (!this.seenMoments.includes(key)) {
+        this.seenMoments.push(key);
+        this.queueCeremony({
+          kind: 'habitat',
+          title: 'Preferred company',
+          lines: [
+            { who: 'narration', text: `${a.name} waits by the gate whenever ${b.name} comes back from the field.` },
+            { who: 'Orren Hale', text: 'That is not nothing. Keep an eye on that pair.' },
+          ],
+        });
       }
     }
   }
@@ -412,7 +499,15 @@ export class Game {
     this.completeActivity('expedition', 2);
     this.checkStory();
 
-    return { site, found, wild, growth };
+    // Furnace Road: a treated Embermole losing itself — calm it, don't finish it.
+    const special =
+      site.special === 'calm_rampage' &&
+      this.flags.ch2_briefed &&
+      !this.flags.calmed_furnace
+        ? 'calm_rampage'
+        : null;
+
+    return { site, found, wild, growth, special };
   }
 
   /** Accept a Concord Mark from a wild Kinbeast. */
@@ -422,6 +517,11 @@ export class Game {
     this.addBeast(wild);
     this.stats.bondsFormed++;
     this.note(`${wild.name} the ${getSpecies(wild.speciesId).name} accepted a Concord Mark.`);
+    this.queueCeremony({
+      kind: 'bond',
+      beastId: wild.id,
+      title: 'Concord',
+    });
     this.completeActivity('bond', 1);
     this.checkStory();
     return wild;
@@ -633,6 +733,15 @@ export class Game {
           : `${beast.name} was raised under conditions that did not suit it. Less steady than it might have been.`
       );
     }
+    this.queueCeremony({
+      kind: 'hatch',
+      beastId: beast.id,
+      title: 'A hatching',
+      parentNames: egg.parentNames,
+      parents: egg.parents,
+      mutations: egg.mutations,
+      generation: egg.generation,
+    });
     this.checkStory();
     return { beast, mutations: egg.mutations };
   }
@@ -730,6 +839,7 @@ export class Game {
       journal: this.journal,
       stats: this.stats,
       team: this.team,
+      seenMoments: this.seenMoments ?? [],
     };
   }
 
@@ -756,6 +866,8 @@ export class Game {
       journal: save.journal ?? [],
       stats: save.stats ?? this.stats,
       team: save.team ?? [],
+      seenMoments: save.seenMoments ?? [],
+      pendingCeremonies: [],
     });
     this.rng = RNG.fromJSON(save.rng);
     this.roster = (save.roster ?? []).map(deserialiseBeast);
@@ -812,10 +924,18 @@ function serialiseBeast(beast) {
  */
 function migrate(save) {
   if (!save || save.version === SAVE_VERSION) return save;
-  for (const beast of save.roster ?? []) normaliseGenome(beast.genome);
+  for (const beast of save.roster ?? []) {
+    normaliseGenome(beast.genome);
+    // Echoryx used to borrow the Mossbun genome; give it its own species id.
+    if (beast.isEchoryx && (beast.genome.species === 'mossbun' || beast.speciesId === 'mossbun')) {
+      beast.genome.species = 'echoryx';
+      beast.speciesId = 'echoryx';
+    }
+  }
   for (const egg of save.eggs ?? []) normaliseGenome(egg.genome);
   save.regionsUnlocked ??= ['hearthmere'];
   save.region ??= 'hearthmere';
+  save.seenMoments ??= [];
   save.version = SAVE_VERSION;
   return save;
 }

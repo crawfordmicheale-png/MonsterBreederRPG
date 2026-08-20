@@ -74,48 +74,13 @@ export function sanctuaryScreen(app) {
     );
   }
 
-  // --- habitats ---
-  root.appendChild(sectionHead('Briarhold', 'Habitats'));
-  root.appendChild(
-    div(
-      { class: 'stack' },
-      game.habitatsUnlocked.map((id) => {
-        const habitat = game.habitat(id);
-        const occupants = game.occupantsOf(id);
-        const crowded = game.isCrowded(id);
-        return div(
-          { class: 'card tight' },
-          div(
-            { class: 'spread' },
-            div({}, el('h3', { style: { margin: 0 } }, habitat.name), div({ class: 'tiny' }, `${occupants.length}/${habitat.capacity} · ${habitat.affinities.join(', ')}`)),
-            div({ class: 'row' },
-              crowded ? tag('Crowded', 'bad') : null,
-              span({ class: 'swatch', style: { background: habitat.tone, width: '18px', height: '18px' } })
-            )
-          ),
-          crowded
-            ? div({ class: 'tiny', style: { color: 'var(--danger)', marginTop: '4px' } }, 'Over capacity — nobody here is settling. Build more space.')
-            : null,
-          occupants.length
-            ? div(
-                { class: 'row wrap', style: { marginTop: '8px' } },
-                occupants.map((b) =>
-                  el(
-                    'button',
-                    { type: 'button', class: 'btn ghost small', style: { padding: '2px', minHeight: '0', border: 'none' }, onclick: () => openProfile(app, b) },
-                    portrait(b, 44, { shadow: false })
-                  )
-                )
-              )
-            : div({ class: 'tiny', style: { marginTop: '6px', fontStyle: 'italic' } }, 'Empty. For now.')
-        );
-      })
-    )
-  );
+  // --- habitats as a living map ---
+  root.appendChild(sectionHead('Briarhold', 'Sanctuary grounds'));
+  root.appendChild(sanctuaryMap(app));
 
   // --- habitat life ---
   const gossip = habitatGossip(game);
-  if (gossip) root.appendChild(div({ class: 'callout quiet' }, gossip));
+  if (gossip) root.appendChild(div({ class: 'callout quiet habitat-moment' }, gossip));
 
   // --- projects ---
   const projects = game.availableProjects();
@@ -209,6 +174,98 @@ export function sanctuaryScreen(app) {
   return root;
 }
 
+/** Visual sanctuary map — habitats as places with Kinbeasts on the grounds. */
+function sanctuaryMap(app) {
+  const game = app.game;
+  const recovery = game.recoveryLevel?.() ?? 0;
+  const map = div({ class: `sanctuary-map recovery-${recovery}` });
+
+  map.appendChild(
+    div(
+      { class: 'sanctuary-map-sky' },
+      span({ class: 'tiny' }, `Briarhold · ${game.recoveryLabel?.() ?? 'Ash'}`)
+    )
+  );
+
+  const grounds = div({ class: 'sanctuary-grounds' });
+  const layout = {
+    meadow: { x: 8, y: 42, w: 44 },
+    wetland: { x: 52, y: 55, w: 40 },
+    grotto: { x: 58, y: 18, w: 36 },
+    forest: { x: 6, y: 12, w: 42 },
+    furnace: { x: 48, y: 8, w: 38 },
+  };
+
+  for (const id of game.habitatsUnlocked) {
+    const habitat = game.habitat(id);
+    const occupants = game.occupantsOf(id);
+    const crowded = game.isCrowded(id);
+    const pos = layout[id] ?? { x: 20, y: 30, w: 40 };
+    const plot = div({
+      class: `habitat-plot${crowded ? ' crowded' : ''}`,
+      style: {
+        left: `${pos.x}%`,
+        top: `${pos.y}%`,
+        width: `${pos.w}%`,
+        '--plot-tone': habitat.tone,
+      },
+    });
+    plot.appendChild(
+      div(
+        { class: 'habitat-plot-head' },
+        span({ class: 'habitat-plot-name' }, habitat.name),
+        span({ class: 'tiny' }, `${occupants.length}/${habitat.capacity}`)
+      )
+    );
+    if (occupants.length) {
+      plot.appendChild(
+        div(
+          { class: 'habitat-plot-beasts' },
+          occupants.map((b, i) =>
+            el(
+              'button',
+              {
+                type: 'button',
+                class: 'habitat-beast',
+                style: { animationDelay: `${i * 0.35}s` },
+                onclick: () => openProfile(app, b),
+                title: b.name,
+              },
+              portrait(b, 40, { shadow: false, stage: false })
+            )
+          )
+        )
+      );
+    } else {
+      plot.appendChild(div({ class: 'tiny habitat-empty' }, 'Empty. For now.'));
+    }
+    if (crowded) {
+      plot.appendChild(div({ class: 'tiny crowded-note' }, 'Over capacity'));
+    }
+    grounds.appendChild(plot);
+  }
+
+  // Locked plots as faint ruins.
+  for (const id of Object.keys(HABITATS)) {
+    if (game.habitatsUnlocked.includes(id)) continue;
+    const pos = layout[id];
+    if (!pos) continue;
+    grounds.appendChild(
+      div(
+        {
+          class: 'habitat-plot locked',
+          style: { left: `${pos.x}%`, top: `${pos.y}%`, width: `${pos.w}%` },
+        },
+        span({ class: 'tiny' }, HABITATS[id].name),
+        span({ class: 'tiny' }, 'ruined')
+      )
+    );
+  }
+
+  map.appendChild(grounds);
+  return map;
+}
+
 function habitatGossip(game) {
   const pairs = [];
   for (const beast of game.roster) {
@@ -259,7 +316,12 @@ export function exploreScreen(app) {
   }
 
   root.appendChild(sectionHead('Region', region.name));
-  root.appendChild(p({ class: 'muted' }, region.blurb));
+  root.appendChild(
+    div(
+      { class: 'region-banner', style: { '--region-tone': region.tone ?? '#8fae6a' } },
+      p({ class: 'muted', style: { margin: 0 } }, region.blurb)
+    )
+  );
 
   const party = game.activeTeam.slice(0, 3);
   root.appendChild(
@@ -287,13 +349,22 @@ function siteCard(app, site) {
   const hazard = site.hazard ? HAZARDS[site.hazard] : null;
   const party = hazard ? game.partyFor(site.hazard) : null;
   const passable = !hazard || party.ok;
+  const tone = site.tone ?? REGIONS[game.region]?.tone ?? '#8fae6a';
 
   const card = div(
-    { class: 'card tight' },
+    {
+      class: `card tight site-card${site.special === 'calm_rampage' && game.flags.ch2_briefed && !game.flags.calmed_furnace ? ' site-special' : ''}`,
+      style: { '--site-tone': tone },
+    },
+    div({ class: 'site-wash' }),
     div(
       { class: 'spread' },
       el('h3', { style: { margin: 0 } }, site.name),
-      hazard ? tag(hazard.name, passable ? 'good' : 'bad') : null
+      hazard
+        ? tag(hazard.name, passable ? 'good' : 'bad')
+        : site.special === 'calm_rampage' && game.flags.ch2_briefed && !game.flags.calmed_furnace
+        ? tag('Unsettled', 'warn')
+        : null
     ),
     p({ class: 'tiny', style: { margin: '3px 0 8px' } }, site.blurb)
   );
@@ -387,6 +458,53 @@ function runExpedition(app, site) {
     }
 
     const wild = result.wild;
+
+    if (result.special === 'calm_rampage') {
+      body.appendChild(
+        div(
+          { class: 'callout' },
+          'An Embermole is tearing at the furnace wall. The Crown treatment is burning through it. Maeve\'s crews will not put it down — they ask you to settle it.'
+        )
+      );
+      body.appendChild(
+        div(
+          { class: 'card tight row' },
+          portrait(wild, 62, { stage: false }),
+          div({ style: { flex: 1 } },
+            div({ style: { fontWeight: 600 } }, `A rampaging ${getSpecies(wild.speciesId).name}`),
+            div({ class: 'chip-row' }, affinityTags(wild), tag(`Lv ${wild.level}`), tag('Calm', 'warn'))
+          )
+        )
+      );
+      body.appendChild(
+        button('Try to calm it', {
+          class: 'btn primary full',
+          onclick: () => {
+            close();
+            app.startBattle({
+              title: 'Furnace Road',
+              subtitle: 'Settle the treated Kinbeast',
+              playerTeam: game.activeTeam,
+              foeTeam: [wild],
+              objective: 'calm',
+              canFlee: true,
+              onEnd: (battle) => {
+                const res = game.recordBattle(battle, { xp: 80 });
+                if (res.won) {
+                  game.flags.calmed_furnace = true;
+                  game.note('The treated Embermole settled. Maeve will remember that.');
+                  toast('It settles. The wall stops shaking.');
+                }
+                app.afterChange();
+              },
+            });
+          },
+        })
+      );
+      body.appendChild(button('Leave it to the crews', { class: 'btn ghost full', onclick: close }));
+      return body;
+    }
+
     body.appendChild(
       div(
         { class: 'card tight row' },
@@ -503,7 +621,14 @@ export function breedScreen(app) {
   const root = div({ class: 'stack' });
 
   if (!game.flags.breeding_unlocked) {
-    root.appendChild(emptyState('Orren has not walked you through pairing yet.'));
+    root.appendChild(
+      div(
+        { class: 'card stack' },
+        el('h3', {}, 'The Nursery is quiet'),
+        p({ class: 'muted' }, 'Orren has not walked you through pairing yet. Clear the grounds, form a Concord, and the Meadow Trial will open the door.'),
+        p({ class: 'tiny' }, 'When it does, this tab is where bloodlines begin.')
+      )
+    );
     return root;
   }
   if (!game.facilities.nursery) {

@@ -63,7 +63,8 @@ It needs a local Chromium; set `CHROMIUM_PATH` if yours is somewhere unusual.
 | §13 Combat | 3v3, initiative timeline, passives, temperament reactions, Bond Skills, four objective types. |
 | §14 Sanctuary | Habitats, projects, six facilities, habitat social simulation. |
 | §15 Progression | Rank, training toward genetic ceilings, bloodline naming. |
-| §19 UI direction | Field-journal interface, pedigree screen, Echo archive. |
+| §19 UI direction | Field-journal interface, pedigree screen, Echo archive, sanctuary map. |
+| Presence layer | Echoryx painter, hatch/bond ceremonies, recovery theming, calm fight, sanctuary audio. |
 | Chapters Three–Nine, 18 further species, postgame | Not yet — see [ROADMAP](docs/ROADMAP.md). |
 
 ---
@@ -102,7 +103,9 @@ src/
     engine.js             headless 3v3 combat, emits events
   render/
     creature.js           procedural creature art from a phenotype
-  ui/                     DOM layer — screens, sheets, portraits
+  ui/                     DOM layer — screens, sheets, portraits, ceremonies
+    audio.js              procedural sanctuary bed (no asset files)
+    ceremony.js           hatch / Concord / habitat moment overlays
 tests/
   genetics.test.js        genetics and entity rules
   game.test.js            combat, bonding, state, full campaign run

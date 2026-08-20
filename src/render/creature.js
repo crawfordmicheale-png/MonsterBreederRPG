@@ -1026,6 +1026,72 @@ const PAINTERS = {
     drawEyes(ctx, hx, hy - 1, 4, 1.2, c.eye, { blink: true });
     drawGlow(ctx, p.features.glow, s, -12, bodyY, 4.5);
   },
+
+  // Echoryx: small adaptive quadruped — oversized ears, luminous markings,
+  // soft unimpressive body that holds whatever glow it has borrowed.
+  echo(ctx, s) {
+    const { p, c, t, randoms } = s;
+    const bodyY = -18;
+    const sway = Math.sin((t ?? 0) / 700) * 1.2;
+
+    drawTail(ctx, p.features.tail ?? 'tail_stub', s, -14, -10, -1);
+
+    // Soft underglow — the adaptive tell.
+    ctx.save();
+    ctx.globalAlpha = 0.22 + Math.sin((t ?? 0) / 500) * 0.06;
+    fillBlob(ctx, 0, bodyY + 4, 26, 14, shade(c.accent, 8));
+    ctx.restore();
+
+    blob(ctx, 0, bodyY, 18, 15);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = colorToCss(c.primary);
+    ctx.fillRect(-40, -60, 80, 80);
+    paintCodominant(ctx, s, [-18, bodyY - 15, 18, bodyY + 15]);
+    paintPattern(ctx, s, [-16, bodyY - 12, 16, bodyY + 12]);
+    // Drifted markings — little borrowed flecks.
+    ctx.fillStyle = shade(c.accent, 4);
+    for (let i = 0; i < 7; i++) {
+      const rx = (randoms[i] - 0.5) * 28;
+      const ry = bodyY - 8 + randoms[i + 7] * 18;
+      fillBlob(ctx, rx, ry, 1.6 + randoms[i + 14] * 1.8, 1.2, shade(c.accent, 10));
+    }
+    ctx.restore();
+
+    fillBlob(ctx, 0, bodyY + 6, 11, 7, shade(c.secondary, 6));
+
+    // Oversized adaptive ears — the silhouette cue.
+    for (const dir of [-1, 1]) {
+      ctx.save();
+      ctx.translate(dir * 7, bodyY - 14 + sway * dir * 0.3);
+      ctx.rotate(dir * 0.18);
+      ctx.beginPath();
+      ctx.moveTo(0, 4);
+      ctx.quadraticCurveTo(dir * 8, -18, dir * 2, -26);
+      ctx.quadraticCurveTo(dir * -1, -10, 0, 4);
+      ctx.closePath();
+      ctx.fillStyle = colorToCss(c.primary, 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(0, 2);
+      ctx.quadraticCurveTo(dir * 4, -14, dir * 1, -20);
+      ctx.quadraticCurveTo(dir * -0.5, -8, 0, 2);
+      ctx.closePath();
+      ctx.fillStyle = shade(c.accent, 6);
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    drawCrest(ctx, p.features.crest ?? 'crest_none', s, 0, bodyY - 14);
+
+    fillBlob(ctx, 0, bodyY - 4, 11, 9.5, colorToCss(c.primary, 4));
+    drawEyes(ctx, 0, bodyY - 5, 4.8, 2.0, c.eye);
+    fillBlob(ctx, 0, bodyY - 0.5, 1.4, 1.0, shade(c.accent, -8));
+
+    for (const dir of [-1, 1]) fillBlob(ctx, dir * 8, -2, 4.8, 2.8, shade(c.secondary, -4));
+    drawGlow(ctx, p.features.glow ?? 'glow_speckle', s, 0, bodyY + 4, 5);
+  },
 };
 
 export const SILHOUETTES = Object.keys(PAINTERS);
