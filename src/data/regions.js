@@ -11,11 +11,13 @@ export const REGIONS = {
     blurb:
       'Long grass, low stone walls and the smell of rain coming. The countryside around Briarhold has been left to itself for years.',
     unlockedBy: null,
+    tone: '#7a9a5c',
     sites: [
       {
         id: 'meadow',
         name: 'The Open Meadow',
         blurb: 'Waist-high grass that moves when nothing is moving it.',
+        tone: '#8fae6a',
         encounters: [
           { species: 'mossbun', weight: 40, level: [3, 6] },
           { species: 'cinderkit', weight: 22, level: [4, 7] },
@@ -28,6 +30,7 @@ export const REGIONS = {
         id: 'brook',
         name: 'Hearthmere Brook',
         blurb: 'Cold, clear and shallow enough to wade. Something keeps stealing the fish.',
+        tone: '#5a8f9a',
         encounters: [
           { species: 'brookfin', weight: 46, level: [4, 7] },
           { species: 'mossbun', weight: 24, level: [3, 6] },
@@ -40,6 +43,7 @@ export const REGIONS = {
         id: 'hollow',
         name: 'The Hollow Under the Hill',
         blurb: 'A chalk cave the local children are told not to enter. They enter anyway.',
+        tone: '#6b5a86',
         encounters: [
           { species: 'glowgrub', weight: 38, level: [4, 8] },
           { species: 'pebbleback', weight: 26, level: [5, 9] },
@@ -59,11 +63,13 @@ export const REGIONS = {
     blurb:
       'Black rock and standing heat. Everything Embervale has ever built runs on the furnaces beneath it, and the furnaces run on Kinbeasts.',
     unlockedBy: 'ch2_started',
+    tone: '#a85a32',
     sites: [
       {
         id: 'foothills',
         name: 'Emberbreak Foothills',
         blurb: 'Scrub, slag heaps and the sound of the works carrying down the valley.',
+        tone: '#9a6a45',
         encounters: [
           { species: 'brambletusk', weight: 30, level: [9, 13] },
           { species: 'cinderkit', weight: 24, level: [9, 12] },
@@ -76,6 +82,7 @@ export const REGIONS = {
         id: 'springs',
         name: 'The Steaming Shallows',
         blurb: 'Hot springs where the mountain water comes back up. Warm enough to sit in. Just.',
+        tone: '#7a8f8a',
         encounters: [
           { species: 'shellip', weight: 34, level: [10, 13] },
           { species: 'mudsprig', weight: 30, level: [10, 13] },
@@ -87,7 +94,9 @@ export const REGIONS = {
       {
         id: 'furnace_road',
         name: 'The Furnace Road',
-        blurb: 'The service tunnels. Hot, but survivable, and the crews still walk it daily.',
+        blurb: 'The service tunnels. Hot, but survivable, and the crews still walk it daily. Something in the walls will not settle.',
+        special: 'calm_rampage',
+        tone: '#b8663a',
         encounters: [
           { species: 'embermole', weight: 34, level: [11, 14] },
           { species: 'cinderkit', weight: 24, level: [11, 14] },
@@ -104,6 +113,7 @@ export const REGIONS = {
         // The chapter's gate. Visible from the first visit so the player can
         // plan a bloodline toward it rather than discovering a wall.
         hazard: 'heat',
+        tone: '#6a3a28',
         encounters: [
           { species: 'embermole', weight: 46, level: [13, 16] },
           { species: 'cinderkit', weight: 22, level: [13, 16] },

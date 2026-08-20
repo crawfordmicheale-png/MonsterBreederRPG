@@ -190,10 +190,12 @@ test('resistance is predicted before the pairing, not after', () => {
 // New species
 // ---------------------------------------------------------------------------
 
-test('all twelve species are well formed and drawable', async () => {
+test('all playable species are well formed and drawable', async () => {
   const { SILHOUETTES } = await import('../src/render/creature.js');
+  const { wildSpeciesIds } = await import('../src/data/species.js');
   const rng = new RNG(6);
-  assert.equal(SPECIES_IDS.length, 12);
+  const wild = wildSpeciesIds();
+  assert.equal(wild.length, 12);
   for (const id of SPECIES_IDS) {
     const species = getSpecies(id);
     assert.ok(SILHOUETTES.includes(species.silhouette), `${id} has no painter for ${species.silhouette}`);
@@ -208,15 +210,16 @@ test('all twelve species are well formed and drawable', async () => {
   }
 });
 
-test('every species is reachable from some expedition site', async () => {
+test('every wild species is reachable from some expedition site', async () => {
   const { REGIONS } = await import('../src/data/regions.js');
+  const { wildSpeciesIds } = await import('../src/data/species.js');
   const reachable = new Set();
   for (const region of Object.values(REGIONS)) {
     for (const site of region.sites) {
       for (const entry of site.encounters) reachable.add(entry.species);
     }
   }
-  const missing = SPECIES_IDS.filter((id) => !reachable.has(id));
+  const missing = wildSpeciesIds().filter((id) => !reachable.has(id));
   assert.deepEqual(missing, [], `unreachable species: ${missing.join(', ')}`);
 });
 
